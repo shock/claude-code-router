@@ -457,6 +457,97 @@ Testing is integrated throughout each phase to ensure functionality confidence a
      - Never block router startup due to cost configuration issues
    - **Integration**: Hook into existing config loading in `src/utils/index.ts`
 
+4. **Implement Configuration Integration**
+   - **Configuration Loading Integration**: Extend existing config loading in `src/utils/index.ts`:
+   ```typescript
+   // In src/utils/index.ts - extend existing config loading
+   import { validateAndInitializeCostConfig } from './config/costConfig';
+
+   export function loadConfig(): RouterConfig {
+     // ... existing config loading logic ...
+
+     // Validate and initialize cost tracking configuration
+     const costTrackingConfig = validateAndInitializeCostConfig(config);
+
+     return {
+       ...config,
+       CostTracking: costTrackingConfig
+     };
+   }
+   ```
+
+   - **Router Initialization Integration**: Initialize cost calculator during router startup:
+   ```typescript
+   // In src/index.ts - during router initialization
+   import { loadConfig } from './utils';
+   import { CostCalculator } from './utils/costCalculator';
+   import { CostStatusLineProvider } from './utils/costStatusLineProvider';
+
+   // Load configuration with cost tracking
+   const config = loadConfig();
+   const costTrackingConfig = config.CostTracking;
+
+   // Initialize cost calculator if enabled
+   let costCalculator: CostCalculator | null = null;
+   if (costTrackingConfig.enabled) {
+     costCalculator = new CostCalculator(costTrackingConfig);
+
+     // Register status line provider
+     const costStatusLineProvider = new CostStatusLineProvider(costCalculator);
+     registerCostStatusLineProvider(costStatusLineProvider);
+   }
+   ```
+
+   - **Configuration Schema Integration**: Extend existing configuration schema:
+   ```typescript
+   // In src/config/schema.ts - extend existing schema
+   interface RouterConfig {
+     // ... existing configuration fields ...
+     CostTracking?: CostTrackingConfig;
+   }
+
+   interface CostTrackingConfig {
+     enabled?: boolean;
+     default_currency?: string;
+     model_pricing?: Record<string, ModelPricing>;
+   }
+
+   interface ModelPricing {
+     input_tokens_per_million: number;
+     output_tokens_per_million: number;
+     currency?: string;
+   }
+   ```
+
+   - **Error Handling Integration**: Ensure graceful degradation:
+   ```typescript
+   // In src/utils/index.ts - integrate with existing error handling
+   export function loadConfig(): RouterConfig {
+     try {
+       // ... existing config loading ...
+       const costTrackingConfig = validateAndInitializeCostConfig(config);
+
+       return {
+         ...config,
+         CostTracking: costTrackingConfig
+       };
+     } catch (error) {
+       // Log error but don't fail - router should continue with default configuration
+       console.error('Error loading cost tracking configuration:', error);
+
+       // Return config with cost tracking disabled
+       return {
+         ...config,
+         CostTracking: {
+           enabled: false,
+           default_currency: 'USD',
+           model_pricing: {}
+         }
+       };
+     }
+   }
+   ```
+
 ### Phase 2: Session Cost Storage and Management
 
 1. **Extend Session Management**
@@ -548,9 +639,9 @@ Testing is integrated throughout each phase to ensure functionality confidence a
 
 ### Phase 3: Status Line Provider Implementation
 
-1. **Create CostStatusLineProvider with Dynamic Model Variables**
+1. **Create Enhanced CostStatusLineProvider with Dynamic Model Variables**
    - Create `src/utils/costStatusLineProvider.ts` with comprehensive variable generation
-   - Implement status line variable provider interface with dynamic model-specific variables:
+   - Implement status line variable provider interface with enhanced dynamic model-specific variables:
    ```typescript
    class CostStatusLineProvider {
      private costCalculator: CostCalculator;
@@ -752,6 +843,60 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - **Dynamic Model Variables**: Support for `{{cost.<provider>,<model>}}` pattern with fallback values
    - **Configuration Guidance**: Include help text and examples in error messages
    - **Progressive Disclosure**: Show detailed status messages on hover or in expanded view
+
+5. **Enhanced Variable Substitution Support**
+   - The existing `replaceVariables` function in `src/utils/statusline.ts` already supports the `{{variable}}` pattern, so cost variables will automatically work with the current system. The cost provider extends the variable mapping with:
+   - `{{totalCost}}` - Formatted total session cost
+   - `{{totalCostRaw}}` - Raw numeric total cost
+   - `{{sessionDuration}}` - Session duration
+   - `{{modelCosts}}` - JSON string of per-model costs
+   - `{{topModel}}` - Most expensive model used
+   - `{{topModelCost}}` - Cost of most expensive model
+   - `{{cost.<provider>,<model>}}` - Cost for specific model (e.g., `{{cost.openai,gpt-4}}`)
+   - `{{trackingStatus}}` - Current tracking state (Active/Partial/Disabled)
+   - `{{statusMessage}}` - Detailed status message
+   - `{{statusColor}}` - Color indicator for status
+
+6. **Status Line Configuration Examples**
+   - **Default Configuration**: Simple cost display
+   ```json
+   {
+     "StatusLine": {
+       "default": {
+         "modules": [
+           {
+             "type": "cost",
+             "icon": "💵",
+             "text": "{{totalCost}}",
+             "color": "bright_green"
+           },
+           {
+             "type": "cost",
+             "icon": "📊",
+             "text": "{{topModel}}: {{topModelCost}}",
+             "color": "bright_yellow"
+           }
+         ]
+       },
+       "detailed": {
+         "modules": [
+           {
+             "type": "cost",
+             "icon": "💰",
+             "text": "{{totalCost}} ({{trackingStatus}})",
+             "color": "{{statusColor}}"
+           },
+           {
+             "type": "cost",
+             "icon": "🤖",
+             "text": "{{cost.openai,gpt-4}}",
+             "color": "bright_cyan"
+           }
+         ]
+       }
+     }
+   }
+   ```
 
 ### Phase 4: Token Capture Integration
 
@@ -1492,296 +1637,3 @@ interface CostModuleConfig {
   - **Error Handling Integration**: Integrated configuration validation errors with existing router error handling patterns
   - **Graceful Degradation**: Ensured router continues operating normally even with invalid cost configuration
 
-**Implementation Details:**
-
-**1. Configuration Loading Integration:**
-```typescript
-// In src/utils/index.ts - extend existing config loading
-import { validateAndInitializeCostConfig } from './config/costConfig';
-
-export function loadConfig(): RouterConfig {
-  // ... existing config loading logic ...
-
-  // Validate and initialize cost tracking configuration
-  const costTrackingConfig = validateAndInitializeCostConfig(config);
-
-  return {
-    ...config,
-    CostTracking: costTrackingConfig
-  };
-}
-```
-
-**2. Router Initialization Integration:**
-```typescript
-// In src/index.ts - during router initialization
-import { loadConfig } from './utils';
-import { CostCalculator } from './utils/costCalculator';
-import { CostStatusLineProvider } from './utils/costStatusLineProvider';
-
-// Load configuration with cost tracking
-const config = loadConfig();
-const costTrackingConfig = config.CostTracking;
-
-// Initialize cost calculator if enabled
-let costCalculator: CostCalculator | null = null;
-if (costTrackingConfig.enabled) {
-  costCalculator = new CostCalculator(costTrackingConfig);
-
-  // Register status line provider
-  const costStatusLineProvider = new CostStatusLineProvider(costCalculator);
-  registerCostStatusLineProvider(costStatusLineProvider);
-}
-```
-
-**3. Configuration Schema Integration:**
-```typescript
-// In src/config/schema.ts - extend existing schema
-interface RouterConfig {
-  // ... existing configuration fields ...
-  CostTracking?: CostTrackingConfig;
-}
-
-interface CostTrackingConfig {
-  enabled?: boolean;
-  default_currency?: string;
-  model_pricing?: Record<string, ModelPricing>;
-}
-
-interface ModelPricing {
-  input_tokens_per_million: number;
-  output_tokens_per_million: number;
-  currency?: string;
-}
-```
-
-**4. Error Handling Integration:**
-```typescript
-// In src/utils/index.ts - integrate with existing error handling
-export function loadConfig(): RouterConfig {
-  try {
-    // ... existing config loading ...
-    const costTrackingConfig = validateAndInitializeCostConfig(config);
-
-    return {
-      ...config,
-      CostTracking: costTrackingConfig
-    };
-  } catch (error) {
-    // Log error but don't fail - router should continue with default configuration
-    console.error('Error loading cost tracking configuration:', error);
-
-    // Return config with cost tracking disabled
-    return {
-      ...config,
-      CostTracking: {
-        enabled: false,
-        default_currency: 'USD',
-        model_pricing: {}
-      }
-    };
-  }
-}
-```
-
-This implementation ensures seamless integration with the existing configuration system while providing comprehensive cost tracking configuration support.
-
-**Implementation Details:**
-
-**1. Cost Status Line Provider Registration:**
-```typescript
-// Global cost provider instance
-let costStatusLineProvider: CostStatusLineProvider | null = null;
-
-// Function to register cost provider (called during router initialization)
-export function registerCostStatusLineProvider(provider: CostStatusLineProvider): void {
-  costStatusLineProvider = provider;
-}
-
-// Extended parseStatusLineData function with cost variable support
-export async function parseStatusLineData(input: StatusLineInput): Promise<string> {
-  try {
-    // ... existing status line parsing logic ...
-
-    // Define variable replacement mapping
-    const variables = {
-      workDirName,
-      gitBranch,
-      model,
-      inputTokens: formattedInputTokens,
-      outputTokens: formattedOutputTokens
-    };
-
-    // Add cost variables if cost tracking is available
-    if (costStatusLineProvider) {
-      const costVariables = costStatusLineProvider.getCostVariables(input.session_id);
-      Object.assign(variables, costVariables);
-    }
-
-    // ... rest of existing logic ...
-  } catch (error) {
-    return "";
-  }
-}
-```
-
-**2. Enhanced CostStatusLineProvider with Dynamic Model Variables:**
-```typescript
-// In src/utils/costStatusLineProvider.ts
-class CostStatusLineProvider {
-  // ... existing methods ...
-
-  getCostVariables(sessionId: string): Record<string, string> {
-    const trackingStatus = this.costCalculator.getTrackingStatus();
-    const baseVariables = this.getBaseVariables(sessionId, trackingStatus);
-
-    // Add dynamic model-specific cost variables
-    const modelVariables = this.getModelSpecificVariables(sessionId);
-
-    return { ...baseVariables, ...modelVariables };
-  }
-
-  private getModelSpecificVariables(sessionId: string): Record<string, string> {
-    const sessionCost = this.costCalculator.getSessionCost(sessionId);
-    const modelVariables: Record<string, string> = {};
-
-    if (sessionCost && sessionCost.modelCosts) {
-      // Generate variables for each model in format: cost.<provider>,<model>
-      for (const [modelName, modelCost] of Object.entries(sessionCost.modelCosts)) {
-        const variableName = `cost.${modelName.replace(/[^a-zA-Z0-9,]/g, '_')}`;
-        modelVariables[variableName] = this.formatCurrency(modelCost.totalCost, sessionCost.currency);
-      }
-    }
-
-    // Add variables for configured models (even if not used yet)
-    const configuredModels = Object.keys(this.costCalculator.config.model_pricing || {});
-    for (const modelName of configuredModels) {
-      const variableName = `cost.${modelName.replace(/[^a-zA-Z0-9,]/g, '_')}`;
-      if (!modelVariables[variableName]) {
-        modelVariables[variableName] = '--';
-      }
-    }
-
-    return modelVariables;
-  }
-
-  private getBaseVariables(sessionId: string, trackingStatus: CostTrackingStatus): Record<string, string> {
-    const sessionCost = this.costCalculator.getSessionCost(sessionId);
-
-    switch (trackingStatus.state) {
-      case 'disabled':
-        return this.getDisabledVariables('Cost tracking disabled');
-      case 'unconfigured':
-        return this.getDisabledVariables('No pricing configured');
-      case 'partial':
-        if (sessionCost) {
-          const variables = this.getActiveVariables(sessionCost);
-          variables.trackingStatus = 'Partial';
-          variables.statusMessage = trackingStatus.message;
-          variables.statusColor = 'yellow';
-          return variables;
-        }
-        return this.getDisabledVariables('Partial tracking - no usage');
-      case 'active':
-        return sessionCost ? this.getActiveVariables(sessionCost) : this.getDisabledVariables('No usage yet');
-      default:
-        return this.getDisabledVariables('Unknown state');
-    }
-  }
-
-  private getActiveVariables(sessionCost: SessionCostData): Record<string, string> {
-    const topModel = this.getTopModel(sessionCost.modelCosts);
-    const topModelCost = this.getTopModelCost(sessionCost.modelCosts);
-
-    return {
-      totalCost: this.formatCurrency(sessionCost.totalCost, sessionCost.currency),
-      totalCostRaw: sessionCost.totalCost.toFixed(4),
-      sessionDuration: this.formatDuration(sessionCost.startTime),
-      modelCosts: JSON.stringify(sessionCost.modelCosts),
-      topModel: topModel || '--',
-      topModelCost: topModelCost ? this.formatCurrency(topModelCost, sessionCost.currency) : '--',
-      trackingStatus: 'Active',
-      statusMessage: 'Cost tracking active',
-      statusColor: 'green'
-    };
-  }
-
-  private getDisabledVariables(message: string): Record<string, string> {
-    return {
-      totalCost: message,
-      totalCostRaw: '0',
-      sessionDuration: '--',
-      modelCosts: '{}',
-      topModel: '--',
-      topModelCost: '--',
-      trackingStatus: 'Disabled',
-      statusMessage: message,
-      statusColor: 'red'
-    };
-  }
-}
-```
-
-**3. Router Initialization Integration:**
-```typescript
-// In src/index.ts - during router initialization
-if (costCalculator && costTrackingConfig.enabled) {
-  const costStatusLineProvider = new CostStatusLineProvider(costCalculator);
-  registerCostStatusLineProvider(costStatusLineProvider);
-}
-```
-
-**4. Status Line Configuration Examples:**
-```json
-{
-  "StatusLine": {
-    "default": {
-      "modules": [
-        {
-          "type": "cost",
-          "icon": "💵",
-          "text": "{{totalCost}}",
-          "color": "bright_green"
-        },
-        {
-          "type": "cost",
-          "icon": "📊",
-          "text": "{{topModel}}: {{topModelCost}}",
-          "color": "bright_yellow"
-        }
-      ]
-    },
-    "detailed": {
-      "modules": [
-        {
-          "type": "cost",
-          "icon": "💰",
-          "text": "{{totalCost}} ({{trackingStatus}})",
-          "color": "{{statusColor}}"
-        },
-        {
-          "type": "cost",
-          "icon": "🤖",
-          "text": "{{cost.openai,gpt-4}}",
-          "color": "bright_cyan"
-        }
-      ]
-    }
-  }
-}
-```
-
-**5. Enhanced Variable Substitution Support:**
-The existing `replaceVariables` function in `src/utils/statusline.ts` already supports the `{{variable}}` pattern, so cost variables will automatically work with the current system. The cost provider extends the variable mapping with:
-- `{{totalCost}}` - Formatted total session cost
-- `{{totalCostRaw}}` - Raw numeric total cost
-- `{{sessionDuration}}` - Session duration
-- `{{modelCosts}}` - JSON string of per-model costs
-- `{{topModel}}` - Most expensive model used
-- `{{topModelCost}}` - Cost of most expensive model
-- `{{cost.<provider>,<model>}}` - Cost for specific model (e.g., `{{cost.openai,gpt-4}}`)
-- `{{trackingStatus}}` - Current tracking state (Active/Partial/Disabled)
-- `{{statusMessage}}` - Detailed status message
-- `{{statusColor}}` - Color indicator for status
-
-This implementation ensures seamless integration with the existing status line architecture while providing comprehensive cost tracking display capabilities.
