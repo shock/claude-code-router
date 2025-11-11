@@ -101,12 +101,11 @@ The router already provides the necessary infrastructure:
 **Phase-by-Phase Testing Requirements:**
 - **Phase 0**: Baseline verification tests for existing router functionality; Configuration validation tests
 - **Phase 1**: Unit tests for cost calculation logic; Configuration parsing and validation tests
-- **Phase 2**: Unit tests for session cost storage; Integration tests with session management
-- **Phase 3**: Unit tests for status line provider; Mock tests with status line variables
-- **Phase 4**: Integration tests for token capture integration; End-to-end tests with stubbed API responses
-- **Phase 5**: Status line integration tests; Manual testing with live status line
-- **Phase 6**: Comprehensive unit tests for full cost tracking functionality; End-to-end integration testing
-- **Phase 7**: Final regression tests running complete test suite; Documentation review
+- **Phase 2**: Unit tests for status line provider; Mock tests with status line variables
+- **Phase 3**: Integration tests for token capture integration; End-to-end tests with stubbed API responses
+- **Phase 4**: Status line integration tests; Manual testing with live status line
+- **Phase 5**: Comprehensive unit tests for full cost tracking functionality; End-to-end integration testing
+- **Phase 6**: Final regression tests running complete test suite; Documentation review
 
 Testing is integrated throughout each phase to ensure functionality confidence at every step.
 
@@ -599,22 +598,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    }
    ```
 
-### Phase 2: Session Cost Storage and Management
-
-1. **Extend Session Management**
-   - Integrate cost calculator with existing session management
-   - Associate costs with session IDs using existing `sessionUsageCache` patterns
-   - Implement session reset behavior
-   - Add session cost persistence leveraging existing LRU cache infrastructure
-
-2. **Implement Session Cost Storage**
-   - **Leverage existing `sessionUsageCache` infrastructure** instead of creating new storage
-   - Extend the existing cache to store cost data alongside token usage
-   - Store per-model cost breakdowns using the same session ID keys
-   - Support session duration tracking using existing session management patterns
-   - Implement cost aggregation logic integrated with existing cache operations
-
-### Phase 3: Status Line Provider Implementation
+### Phase 2: Status Line Provider Implementation
 
 1. **Create Enhanced CostStatusLineProvider with Dynamic Model Variables**
    - Create `src/utils/costStatusLineProvider.ts` with comprehensive variable generation
@@ -860,7 +844,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    }
    ```
 
-### Phase 4: Token Capture Integration
+### Phase 3: Token Capture Integration
 
 1. **Integrate with API Response Processing**
    - Hook into existing API response handling in the `onSend` hook
@@ -909,7 +893,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - **No explicit session reset needed** - LRU cache handles session lifecycle automatically
    - **Session boundaries** are managed implicitly through cache eviction and server restarts
 
-### Phase 5: Status Line Integration
+### Phase 4: Status Line Integration
 
 1. **Extend Status Line System**
    - Add "cost" module type to status line configuration
@@ -929,7 +913,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Handle show_breakdown option
    - Validate cost module configuration
 
-### Phase 6: Comprehensive Testing and Validation
+### Phase 5: Comprehensive Testing and Validation
 
 1. **Create Unit Test Suite**
    - Create `tests/utils/costCalculator.test.ts`
@@ -968,7 +952,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Validate session reset behavior
    - Test error scenarios and graceful degradation
 
-### Phase 7: Final Polish and Documentation
+### Phase 6: Final Polish and Documentation
 
 1. **Code Quality and Optimization**
    - Code review and optimization
