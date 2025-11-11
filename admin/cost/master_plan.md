@@ -540,12 +540,16 @@ Testing is integrated throughout each phase to ensure functionality confidence a
 
    - **Configuration Schema Integration**: Extend existing configuration schema:
    ```typescript
-   // In ui/src/types.ts - extend existing schema
+   // In ui/src/types.ts - extend the main Config interface (line 52)
    // Current schema location: ui/src/types.ts (confirmed exists)
-   // Look for existing RouterConfig interface definition
 
-   interface RouterConfig {
+   interface Config {
      // ... existing configuration fields ...
+     Providers: Provider[];
+     Router: RouterConfig;
+     transformers: Transformer[];
+     StatusLine?: StatusLineConfig;
+     // Add cost tracking configuration
      CostTracking?: CostTrackingConfig;
    }
 
@@ -561,11 +565,11 @@ Testing is integrated throughout each phase to ensure functionality confidence a
      currency?: string;
    }
    ```
-   - **Schema Location Strategy**:
-     - In `ui/src/types.ts`, extend the RouterConfig interface there
-     - If no separate schema file exists, extend the RouterConfig interface in `src/utils/index.ts`
-     - Look for existing RouterConfig type definition to ensure consistent extension
-     - Follow existing type definition patterns in the codebase
+   - **Schema Location Solution**:
+     - Extend the main `Config` interface in `ui/src/types.ts` (line 52) to add `CostTracking?: CostTrackingConfig;`
+     - This is the primary configuration schema used throughout the system
+     - The `Config` interface already includes all top-level configuration sections (Providers, Router, transformers, StatusLine, etc.)
+     - This ensures consistency with existing configuration patterns
 
    - **Error Handling Integration**: Ensure graceful degradation:
    ```typescript
@@ -1538,6 +1542,12 @@ Based on the session scope analysis (`admin/session_scope.md`), several importan
 
 **Required Schema Updates:**
 ```typescript
+// Add to ui/src/types.ts Config interface (line 52)
+interface Config {
+  // ... existing fields ...
+  CostTracking?: CostTrackingConfig;
+}
+
 interface CostTrackingConfig {
   enabled?: boolean;
   default_currency?: string;
