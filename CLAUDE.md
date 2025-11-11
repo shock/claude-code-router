@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     ```
 -   **Stop the router server**:
     ```bash
-    ccr stop
+    ccr stop # don't execute this command directly, or else you sever communications with Claude
     ```
 -   **Check the server status**:
     ```bash
