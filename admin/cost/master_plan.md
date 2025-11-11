@@ -67,7 +67,7 @@ The router uses a JSON configuration file with:
 - `tests/utils/costStatusLineProvider.test.ts` - Unit tests for status line provider
 
 **Modified Files:**
-- `src/config/schema.ts` - Extend configuration schema with cost tracking
+- `ui/src/types.ts` - Extend configuration schema with cost tracking
 - `src/utils/sessionManager.ts` - Integrate cost tracking with session management
 - `src/utils/statusline.ts` - Add cost module type
 - `src/index.ts` - Initialize cost tracking service
@@ -189,6 +189,46 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Add model_pricing validation using `<provider>,<model>` format
    - Support default_currency configuration
    - Implement configuration validation rules
+
+4. **Test Infrastructure Setup**
+   - **Test Framework Setup**: Initialize Jest test framework with TypeScript support
+   ```bash
+   npm install --save-dev jest @types/jest ts-jest
+   ```
+   - **Test Configuration**: Create `jest.config.js` with TypeScript support:
+   ```javascript
+   module.exports = {
+     preset: 'ts-jest',
+     testEnvironment: 'node',
+     testMatch: ['**/tests/**/*.test.ts'],
+     collectCoverageFrom: ['src/**/*.ts'],
+     coverageDirectory: 'coverage',
+     coverageReporters: ['text', 'lcov', 'html']
+   };
+   ```
+   - **Test Directory Structure**: Create organized test structure:
+   ```
+   tests/
+   ├── utils/
+   │   ├── costCalculator.test.ts
+   │   └── costStatusLineProvider.test.ts
+   ├── integration/
+   │   └── costTracking.test.ts
+   └── fixtures/
+       └── testConfig.json
+   ```
+   - **Test Scripts**: Add test scripts to `package.json`:
+   ```json
+   {
+     "scripts": {
+       "test": "jest",
+       "test:watch": "jest --watch",
+       "test:coverage": "jest --coverage"
+     }
+   }
+   ```
+   - **Baseline Verification**: Run existing tests to establish baseline performance
+   - **Test Utilities**: Create test utilities and fixtures for cost tracking scenarios
 
 ### Phase 1: Core Cost Calculation Service
 
@@ -500,7 +540,10 @@ Testing is integrated throughout each phase to ensure functionality confidence a
 
    - **Configuration Schema Integration**: Extend existing configuration schema:
    ```typescript
-   // In src/config/schema.ts - extend existing schema
+   // In ui/src/types.ts - extend existing schema
+   // Current schema location: ui/src/types.ts (confirmed exists)
+   // Look for existing RouterConfig interface definition
+
    interface RouterConfig {
      // ... existing configuration fields ...
      CostTracking?: CostTrackingConfig;
@@ -518,6 +561,11 @@ Testing is integrated throughout each phase to ensure functionality confidence a
      currency?: string;
    }
    ```
+   - **Schema Location Strategy**:
+     - In `ui/src/types.ts`, extend the RouterConfig interface there
+     - If no separate schema file exists, extend the RouterConfig interface in `src/utils/index.ts`
+     - Look for existing RouterConfig type definition to ensure consistent extension
+     - Follow existing type definition patterns in the codebase
 
    - **Error Handling Integration**: Ensure graceful degradation:
    ```typescript
@@ -1026,6 +1074,39 @@ Testing is integrated throughout each phase to ensure functionality confidence a
          expect(avgTimePerCall).toBeLessThan(1);
        });
 
+       it('should integrate with existing logging/monitoring systems', () => {
+         const calculator = new CostCalculator(config);
+
+         // Test performance metrics collection
+         const metrics = {
+           cacheHitRate: 0,
+           calculationTime: 0,
+           memoryUsage: 0
+         };
+
+         // Simulate cost calculations and track metrics
+         for (let i = 0; i < 100; i++) {
+           const startTime = performance.now();
+           calculator.calculateCost('test-session', 'openai,gpt-4', 100, 200);
+           const endTime = performance.now();
+
+           metrics.calculationTime += (endTime - startTime);
+         }
+
+         // Verify metrics are collected
+         const cacheStats = calculator.getCacheStats();
+         expect(cacheStats.costCacheSize).toBeGreaterThan(0);
+         expect(metrics.calculationTime).toBeLessThan(50); // < 0.5ms avg
+       });
+     });
+     ```
+   - **Performance Monitoring Integration:**
+     - **Metrics Collection**: Track cache hit rates, calculation times, memory usage
+     - **Integration Points**: Hook into existing router logging system
+     - **Performance Baselines**: Establish baseline measurements before and after implementation
+     - **Real-time Monitoring**: Monitor cost calculation overhead during live usage
+     - **Alerting**: Set up performance degradation alerts if cost calculation exceeds thresholds
+
        it('should maintain cache efficiency under load', () => {
          const calculator = new CostCalculator(config);
 
@@ -1090,6 +1171,58 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Document all available status line variables
    - Provide best practices for pricing configuration
    - Include examples for different use cases
+
+4. **Migration Examples**
+   - **Upgrade Path for Existing Users**:
+     ```json
+     // Before: No cost tracking
+     {
+       "providers": {
+         "openai": {
+           "api_key": "sk-..."
+         }
+       }
+     }
+
+     // After: Add cost tracking configuration
+     {
+       "providers": {
+         "openai": {
+           "api_key": "sk-..."
+         }
+       },
+       "CostTracking": {
+         "enabled": true,
+         "default_currency": "USD",
+         "model_pricing": {
+           "openai,gpt-4": {
+             "input_tokens_per_million": 2.50,
+             "output_tokens_per_million": 10.00
+           },
+           "anthropic,claude-3.5-sonnet": {
+             "input_tokens_per_million": 3.00,
+             "output_tokens_per_million": 15.00
+           }
+         }
+       },
+       "StatusLine": {
+         "default": {
+           "modules": [
+             {
+               "type": "cost",
+               "icon": "💵",
+               "text": "{{totalCost}}",
+               "color": "bright_green"
+             }
+           ]
+         }
+       }
+     }
+     ```
+   - **Progressive Migration**: Start with minimal configuration and add models as needed
+   - **Backward Compatibility**: Existing configurations continue working without changes
+   - **Error Recovery**: If cost configuration has errors, router continues operating normally
+   - **Configuration Validation**: Use the validation output to fix configuration issues
 
 ## Key Design Decisions
 
@@ -1534,106 +1667,4 @@ interface CostModuleConfig {
 
 ---
 
-## PLAN REVIEW RESULTS
-
-### Redundancies Found:
-
-1. Session Storage Redundancy **RESOLVED**
-- **Issue**: The master plan proposes creating new session storage mechanisms for cost tracking but doesn't leverage the existing `sessionUsageCache` LRU cache infrastructure that already tracks token usage per session ID.
-- **Analysis**: The codebase already has a well-established `sessionUsageCache` (in `src/utils/cache.ts`) that stores token usage per session ID. This infrastructure already handles session management, LRU eviction, and token tracking. Creating a separate session storage system for costs would be redundant and inefficient.
-- **Recommendation**: Update the master plan to leverage the existing `sessionUsageCache` infrastructure for cost storage instead of creating new session storage mechanisms. Extend the existing cache to store cost data alongside token usage, or create a separate cost cache that follows the same patterns.
-- **Resolution**: Updated master plan to:
-  - Use separate LRU cache with same capacity (100) and patterns as `sessionUsageCache`
-  - Store cost data using same session ID keys as existing token tracking
-  - Integrate with existing session management infrastructure
-  - Follow established file organization patterns in `src/utils/` directory
-
-### Inconsistencies Found:
-
-1. File Organization Inconsistency **RESOLVED**
-- **Issue**: The master plan proposes placing new files in `src/services/` directory, but the existing codebase consistently uses `src/utils/` pattern for utility and service files
-- **Analysis**: Current codebase has files like `src/utils/statusline.ts`, `src/utils/cache.ts`, `src/utils/router.ts`, etc. No `src/services/` directory exists. Placing cost-related files in `src/services/` would break the established pattern and create confusion about where to find different types of functionality
-- **Recommendation**: Update the file organization in the master plan to place all new cost-related files in `src/utils/` directory instead of `src/services/` to maintain consistency with existing patterns
-
-### Missing Critical Details:
-
-1. Performance Impact Analysis **RESOLVED**
-- **Issue**: The master plan doesn't adequately address the potential performance impact of real-time cost calculation on every API response, particularly in high-throughput scenarios.
-- **Analysis**: The cost calculation will be triggered on every API response (in the existing `onSend` hook), which could impact request processing speed. The plan mentions "minimal impact" but doesn't provide specific strategies for performance optimization or measurement.
-- **Recommendation**: Add specific performance optimization strategies to the master plan, such as:
-  - Caching cost calculations to avoid recalculation
-  - Using efficient data structures for session cost storage
-  - Performance profiling and benchmarking requirements
-  - Asynchronous cost calculation where possible
-  - Batch processing strategies for high-volume scenarios
-- **Resolution**: Updated master plan with comprehensive performance optimization strategies:
-  - **Caching Implementation**: Added calculation cache in CostCalculator to avoid redundant calculations
-  - **Asynchronous Processing**: Added `process.nextTick()` strategy in `onSend` hook to avoid blocking request processing
-  - **Batch Processing**: Added BatchCostProcessor class for high-volume scenarios
-  - **Performance Testing**: Added comprehensive performance profiling tests with specific benchmarks
-  - **Monitoring**: Added cache statistics and performance monitoring methods
-  - **Efficient Data Structures**: Leveraged existing LRU cache patterns with O(1) operations
-
-2. Error Handling Specification Gaps **RESOLVED**
-- **Issue**: The master plan mentions error handling but lacks specific details about startup validation, runtime validation, and user experience during configuration issues, particularly for missing model pricing.
-- **Analysis**: The plan states to log warnings "only when unconfigured models are actually used" but doesn't specify:
-  - When exactly to log warnings (at startup vs runtime)
-  - How to handle partial cost tracking when some models are configured and others aren't
-  - User experience during configuration issues
-  - Clear error messages with configuration guidance
-- **Resolution**: Added comprehensive error handling specifications including:
-  - **Startup Validation**: Detailed configuration validation in `src/config/costConfig.ts` with clear error messages and graceful degradation
-  - **Runtime Validation**: On-demand warnings only when unconfigured models are used, with usage tracking and partial cost tracking
-  - **User Experience**: Color-coded status line states (green/active, yellow/partial, red/disabled) with clear status messages
-  - **Error Messages**: Specific, actionable error messages with configuration examples and guidance
-  - **Graceful Degradation**: Partial cost tracking continues for configured models while setting cost to 0 for unconfigured models
-  - **Implementation Code**: Added production-ready TypeScript code for all error handling scenarios
-- **Key Improvements**:
-  - Clear distinction between startup validation (non-blocking) and runtime validation (on-demand)
-  - Comprehensive user experience design for configuration issues
-  - Specific error message examples with configuration guidance
-  - Graceful degradation strategies for partial cost tracking
-
-3. Token Capture Integration Details **RESOLVED**
-- **Issue**: The master plan mentions integrating with token capture but lacks specific details about the exact integration point and how to extract model information from routing decisions.
-- **Analysis**: The existing codebase captures token usage in the `onSend` hook (lines 329-373 in index.ts) and stores it in `sessionUsageCache`. The master plan doesn't specify:
-  - The exact hook or location for cost calculation integration
-  - How to extract model information that's used for routing decisions
-  - How to associate API responses with specific session IDs
-  - How to handle the asynchronous nature of cost calculation
-- **Resolution**: Updated master plan with specific token capture integration details:
-  - **Exact Hook Location**: Cost calculation will be integrated into the existing `onSend` hook at line 374-377 in `src/index.ts`
-  - **Model Information Extraction**: Model information is available in `req.body.model` set by the router at line 224 in `src/utils/router.ts`
-  - **Session ID Association**: Session IDs are already extracted from `metadata.user_id` at lines 185-190 in `src/utils/router.ts` and available as `req.sessionId`
-  - **Asynchronous Processing**: Cost calculation will use `process.nextTick()` to avoid blocking request processing
-  - **Integration Pattern**: Follows existing `sessionUsageCache` patterns with separate cost cache using same session ID keys
-  - **Implementation Code**: Added production-ready TypeScript code for the integration in Phase 4
-
-4. Status Line Variable Provider Integration **RESOLVED**
-- **Issue**: The master plan mentions status line integration but lacks specific details about how the cost status line provider integrates with the existing status line variable system and how it handles dynamic model-specific variables.
-- **Analysis**: The existing status line system (in `src/utils/statusline.ts`) supports variable substitution through the `replaceVariables` function and script execution. The master plan doesn't specify:
-  - How the cost provider integrates with the existing status line architecture
-  - How to handle dynamic model-specific variables like `{{cost.openai,gpt-4}}`
-  - How the cost module type is registered and configured
-  - How to handle disabled states and error conditions in the status line
-- **Resolution**: Added comprehensive status line integration specifications with production-ready code:
-  - **Integration Pattern**: Extended `parseStatusLineData` function to support cost variables through global cost provider registration
-  - **Dynamic Model Variables**: Implemented model-specific cost variable generation using `{{cost.<provider>,<model>}}` pattern
-  - **Module Registration**: Added cost module type support with automatic variable injection
-  - **Error Handling**: Comprehensive disabled state and error condition handling with color-coded status indicators
-  - **Template Substitution**: Extended variable substitution to support nested model-specific cost variables
-
-5. Configuration Integration Details **RESOLVED**
-- **Issue**: The master plan mentions extending the configuration schema but lacks specific details about how the CostTracking configuration section integrates with the existing configuration loading system, where configuration validation should be hooked, and how the configuration is passed to the CostCalculator service during initialization.
-- **Analysis**: The plan includes configuration validation code but doesn't specify:
-  - How the CostTracking section integrates with the existing configuration loading system in `src/utils/index.ts`
-  - Where exactly the configuration validation should be hooked into the existing config loading process
-  - How the validated configuration is passed to the CostCalculator service during router initialization
-  - The specific integration points for configuration hot reloading if supported
-- **Resolution**: Added comprehensive configuration integration specifications with production-ready code:
-  - **Configuration Loading Integration**: Extended existing config loading in `src/utils/index.ts` to include cost tracking configuration validation and initialization
-  - **Validation Hook Integration**: Added `validateAndInitializeCostConfig` function call during router initialization to validate and process cost configuration
-  - **Service Initialization**: Added CostCalculator service initialization with validated configuration during router startup
-  - **Error Handling Integration**: Integrated configuration validation errors with existing router error handling patterns
-  - **Graceful Degradation**: Ensured router continues operating normally even with invalid cost configuration
 
