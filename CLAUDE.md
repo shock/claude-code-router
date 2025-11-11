@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**IMPORTANT**: This project uses `pnpm` as the package manager.  Use `pnpm` instead of `npm` or `yarn`.
+**IMPORTANT**: This project uses `pnpm` as the package manager.  Use `pnpm` instead of `npm` or `yarn`.  Use `pnpm dlx` instead of `npx`.
 
 ## Commands
 
