@@ -664,7 +664,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
        const modelVariables: Record<string, string> = {};
 
        if (sessionCost && sessionCost.modelCosts) {
-         // Generate variables for each model in format: cost.<provider>,<model>
+         // Generate variables for each model in format: cost.<provider>_<model>
          for (const [modelName, modelCost] of Object.entries(sessionCost.modelCosts)) {
            const variableName = `cost.${modelName.replace(/[^a-zA-Z0-9,]/g, '_')}`;
            modelVariables[variableName] = this.formatCurrency(modelCost.totalCost, sessionCost.currency);
@@ -816,7 +816,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
 4. **Comprehensive Error Handling and Status Display**
    - **Color-Coded Status**: Green for active, Yellow for partial, Red for disabled/error states
    - **Clear Status Messages**: "Active", "Partial (2 models unconfigured)", "Disabled", "Error"
-   - **Dynamic Model Variables**: Support for `{{cost.<provider>,<model>}}` pattern with fallback values
+   - **Dynamic Model Variables**: Support for `{{cost.<provider>_<model>}}` pattern with fallback values
    - **Configuration Guidance**: Include help text and examples in error messages
    - **Progressive Disclosure**: Show detailed status messages on hover or in expanded view
 
@@ -828,7 +828,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - `{{modelCosts}}` - JSON string of per-model costs
    - `{{topModel}}` - Most expensive model used
    - `{{topModelCost}}` - Cost of most expensive model
-   - `{{cost.<provider>,<model>}}` - Cost for specific model (e.g., `{{cost.openai,gpt-4}}`)
+   - `{{cost.<provider>_<model>}}` - Cost for specific model (e.g., `{{cost.openai_gpt_4}}`)
    - `{{trackingStatus}}` - Current tracking state (Active/Partial/Disabled)
    - `{{statusMessage}}` - Detailed status message
    - `{{statusColor}}` - Color indicator for status
@@ -865,7 +865,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
            {
              "type": "cost",
              "icon": "🤖",
-             "text": "{{cost.openai,gpt-4}}",
+             "text": "{{cost.openai_gpt_4}}",
              "color": "bright_cyan"
            }
          ]
@@ -1334,7 +1334,7 @@ Based on session scope analysis, cost tracking leverages existing infrastructure
 - `{{modelCosts}}` - JSON string of per-model costs
 - `{{topModel}}` - Most expensive model used
 - `{{topModelCost}}` - Cost of most expensive model
-- `{{cost.<provider>,<model>}}` - Cost for specific model
+- `{{cost.<provider>_<model>}}` - Cost for specific model
 
 ## Benefits of New Architecture
 
