@@ -291,7 +291,7 @@ Testing is integrated throughout each phase to ensure functionality confidence a
      ): number {
        const pricing = this.config.model_pricing[model];
        if (!pricing) {
-         // Log warning for missing pricing (only when model is actually used)
+         // Return 0 cost for unconfigured models (no runtime warnings)
          return 0;
        }
 
@@ -615,79 +615,57 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Support session duration tracking using existing session management patterns
    - Implement cost aggregation logic integrated with existing cache operations
 
-3. **Add Runtime Error Handling and Validation**
-   - **Missing Pricing Detection**: Track unconfigured models only when they're actually used
+3. **Add Startup Configuration Validation**
+   - **Router Model Extraction**: Extract all models from Router configuration (default, background, think, longContext, webSearch)
+   - **Pricing Validation**: Check which router-used models have pricing configured
+   - **Mandatory User Prompt**: If any router-used models lack pricing, display warning and require user confirmation
+   - **Block Startup**: Router will not start until user explicitly confirms acceptance of missing pricing
    ```typescript
-   // In src/utils/costCalculator.ts
-   class CostCalculator {
-     private missingModelWarnings: Set<string> = new Set();
-     private missingModelUsage: Map<string, number> = new Map();
+   // In src/config/costConfig.ts
+   class CostConfigValidator {
+     static validateRouterModels(config: any): { missingPricing: string[] } {
+       const routerModels = new Set<string>();
+       const routerConfig = config.Router;
 
-     calculateCost(
-       sessionId: string,
-       model: string,
-       inputTokens: number,
-       outputTokens: number
-     ): number {
-       const pricing = this.config.model_pricing[model];
-
-       if (!pricing) {
-         // Track usage for unconfigured models
-         const usageKey = model;
-         const currentUsage = this.missingModelUsage.get(usageKey) || 0;
-         this.missingModelUsage.set(usageKey, currentUsage + 1);
-
-         // Log warning only on first occurrence per model per session
-         const warningKey = `${sessionId}:${model}`;
-         if (!this.missingModelWarnings.has(warningKey)) {
-           console.warn(
-             `Cost tracking: No pricing configured for model "${model}". ` +
-             `Cost will be 0. Add pricing to config: ` +
-             `{"${model}": {"input_tokens_per_million": 2.50, "output_tokens_per_million": 10.00}}`
-           );
-           this.missingModelWarnings.add(warningKey);
-         }
-         return 0;
+       // Extract all models from router configuration
+       if (routerConfig) {
+         const routerFields = ['default', 'background', 'think', 'longContext', 'webSearch'];
+         routerFields.forEach(field => {
+           if (routerConfig[field]) {
+             routerModels.add(routerConfig[field]);
+           }
+         });
        }
 
-       // ... existing cost calculation logic
-     }
+       // Check which router models have pricing configured
+       const costConfig = config.CostTracking || {};
+       const modelPricing = costConfig.model_pricing || {};
+       const missingPricing = Array.from(routerModels).filter(model => !modelPricing[model]);
 
-     getTrackingStatus(): CostTrackingStatus {
-       const configuredModels = Object.keys(this.config.model_pricing || {});
-       const hasConfiguredModels = configuredModels.length > 0;
-       const hasMissingWarnings = this.missingModelWarnings.size > 0;
-
-       if (!this.config.enabled) {
-         return { state: 'disabled', message: 'Cost tracking is disabled' };
-       } else if (!hasConfiguredModels) {
-         return { state: 'unconfigured', message: 'No model pricing configured' };
-       } else if (hasMissingWarnings) {
-         return {
-           state: 'partial',
-           message: `Cost tracking partial - ${this.missingModelWarnings.size} models unconfigured`
-         };
-       } else {
-         return { state: 'active', message: 'Cost tracking active' };
-       }
-     }
-
-     getMissingModelStats(): Array<{model: string, usageCount: number}> {
-       return Array.from(this.missingModelUsage.entries())
-         .map(([model, usageCount]) => ({ model, usageCount }))
-         .sort((a, b) => b.usageCount - a.usageCount);
+       return { missingPricing };
      }
    }
+
+   // In startup validation logic
+   const { missingPricing } = CostConfigValidator.validateRouterModels(config);
+   if (missingPricing.length > 0) {
+     console.warn(`Cost tracking: Missing pricing for ${missingPricing.length} router models:`);
+     missingPricing.forEach(model => {
+       console.warn(`  - ${model}: Cost will be 0`);
+     });
+     console.warn('Add missing pricing to config or press Enter to continue with partial tracking...');
+     // Wait for user input before continuing
+     await waitForUserConfirmation();
+   }
    ```
-   - **Graceful Degradation Implementation**:
-     - **Partial Cost Tracking**: Continue tracking costs for configured models while setting cost to 0 for unconfigured models
-     - **Performance Monitoring**: Track missing model usage statistics to identify frequently used unconfigured models
-     - **User Experience**: Status line shows "Partial" when some models are unconfigured, "Disabled" when all models are unconfigured
-     - **Clear Feedback**: Provide immediate visual feedback in status line about tracking state
-   - **Error Recovery**:
-     - **Configuration Hot Reload**: Support dynamic configuration updates without restarting router
-     - **Usage Statistics**: Track which unconfigured models are being used most frequently
-     - **Progressive Enhancement**: Users can start with minimal configuration and add pricing as needed
+   - **Runtime Behavior**:
+     - **Silent Zero Cost**: For unconfigured models, return cost of 0 without logging
+     - **Calculate Configured Models**: Track costs normally for models with pricing
+     - **No Runtime Warnings**: Remove runtime missing model tracking and warnings
+   - **Status Line Display**:
+     - **Show Actual Costs**: Display calculated total cost amount, not "Partial" status
+     - **Include Zero Costs**: Unconfigured models contribute 0 to total, which is accurate
+     - **Focus on Amount**: Users see actual dollar amount being spent
 
 ### Phase 3: Status Line Provider Implementation
 
@@ -703,10 +681,18 @@ Testing is integrated throughout each phase to ensure functionality confidence a
      }
 
      getCostVariables(sessionId: string): Record<string, string> {
-       const trackingStatus = this.costCalculator.getTrackingStatus();
-       const baseVariables = this.getBaseVariables(sessionId, trackingStatus);
+       const sessionCost = this.costCalculator.getSessionCost(sessionId);
 
-       // Add dynamic model-specific cost variables
+       if (!this.costCalculator.config.enabled) {
+         return this.getDisabledVariables('Cost tracking disabled');
+       }
+
+       if (!sessionCost) {
+         return this.getDisabledVariables('No usage yet');
+       }
+
+       // Always show actual costs, even if some models have zero cost due to missing pricing
+       const baseVariables = this.getActiveVariables(sessionCost);
        const modelVariables = this.getModelSpecificVariables(sessionId);
 
        return { ...baseVariables, ...modelVariables };
@@ -736,29 +722,6 @@ Testing is integrated throughout each phase to ensure functionality confidence a
        return modelVariables;
      }
 
-     private getBaseVariables(sessionId: string, trackingStatus: CostTrackingStatus): Record<string, string> {
-       const sessionCost = this.costCalculator.getSessionCost(sessionId);
-
-       switch (trackingStatus.state) {
-         case 'disabled':
-           return this.getDisabledVariables('Cost tracking disabled');
-         case 'unconfigured':
-           return this.getDisabledVariables('No pricing configured');
-         case 'partial':
-           if (sessionCost) {
-             const variables = this.getActiveVariables(sessionCost);
-             variables.trackingStatus = 'Partial';
-             variables.statusMessage = trackingStatus.message;
-             variables.statusColor = 'yellow';
-             return variables;
-           }
-           return this.getDisabledVariables('Partial tracking - no usage');
-         case 'active':
-           return sessionCost ? this.getActiveVariables(sessionCost) : this.getDisabledVariables('No usage yet');
-         default:
-           return this.getDisabledVariables('Unknown state');
-       }
-     }
 
      private getActiveVariables(sessionCost: SessionCostData): Record<string, string> {
        const topModel = this.getTopModel(sessionCost.modelCosts);
@@ -1344,22 +1307,22 @@ cost = (input_tokens * input_price_per_million / 1,000,000) +
 **Comprehensive Error Handling with Clear Specifications:**
 
 **Startup Validation Strategy:**
-- **Configuration Validation**: Validate pricing configuration immediately during router initialization
-- **Clear Error Messages**: Provide specific, actionable error messages with configuration examples
-- **Graceful Degradation**: Fallback to disabled state for invalid configurations with clear user notification
-- **No Blocking Validation**: Don't prevent router startup for cost configuration issues - router continues operating normally
+- **Router Model Extraction**: Extract all models from Router configuration during initialization
+- **Pricing Validation**: Check which router-used models have pricing configured
+- **Mandatory User Prompt**: If any router-used models lack pricing, display warning and require user confirmation
+- **Block Startup**: Router will not start until user explicitly confirms acceptance of missing pricing
 
 **Runtime Validation Strategy:**
-- **On-Demand Warnings**: Log warnings **only when unconfigured models are actually used** during API requests
-- **Partial Cost Tracking**: Allow cost tracking to continue for configured models while setting cost to 0 for unconfigured models
-- **Performance Monitoring**: Track missing model warnings to identify frequently used unconfigured models
-- **User Experience**: Status line shows "Partial" when some models are unconfigured, "Disabled" when all models are unconfigured
+- **Silent Zero Cost**: For unconfigured models, return cost of 0 without logging warnings
+- **Calculate Configured Models**: Track costs normally for models with pricing
+- **No Runtime Tracking**: Remove runtime missing model tracking and warnings
+- **Status Line Display**: Show actual calculated costs, not "Partial" status indicators
 
 **User Experience Design for Configuration Issues:**
-- **Clear Status Indicators**: Status line shows "Error", "Partial", or "Disabled" states with appropriate colors
-- **Configuration Guidance**: Error messages include specific examples and links to documentation
-- **Progressive Enhancement**: Users can start with minimal configuration and add pricing as needed
-- **No Disruption**: Core router functionality remains unaffected by cost tracking issues
+- **Proactive Awareness**: Users know about missing pricing before using the router
+- **Mandatory Confirmation**: Ensures users explicitly accept partial tracking
+- **Clean Status Line**: Shows actual costs without confusing status messages
+- **Accurate Tracking**: Reflects true spending (0 for unconfigured models is correct)
 
 **Implementation Specifications:**
 
@@ -1408,84 +1371,24 @@ class CostConfigValidator {
 }
 ```
 
-**Runtime Validation Implementation:**
-```typescript
-// In src/utils/costCalculator.ts
-class CostCalculator {
-  private missingModelWarnings: Set<string> = new Set();
 
-  calculateCost(
-    sessionId: string,
-    model: string,
-    inputTokens: number,
-    outputTokens: number
-  ): number {
-    const pricing = this.config.model_pricing[model];
-
-    if (!pricing) {
-      // Log warning only on first occurrence per model per session
-      if (!this.missingModelWarnings.has(`${sessionId}:${model}`)) {
-        console.warn(
-          `Cost tracking: No pricing configured for model "${model}". ` +
-          `Cost will be 0. Add pricing to config: ` +
-          `{"${model}": {"input_tokens_per_million": 2.50, "output_tokens_per_million": 10.00}}`
-        );
-        this.missingModelWarnings.add(`${sessionId}:${model}`);
-      }
-      return 0;
-    }
-
-    // ... existing cost calculation logic
-  }
-
-  getTrackingStatus(): CostTrackingStatus {
-    const configuredModels = Object.keys(this.config.model_pricing || {});
-    const hasConfiguredModels = configuredModels.length > 0;
-    const hasMissingWarnings = this.missingModelWarnings.size > 0;
-
-    if (!this.config.enabled) {
-      return { state: 'disabled', message: 'Cost tracking is disabled' };
-    } else if (!hasConfiguredModels) {
-      return { state: 'unconfigured', message: 'No model pricing configured' };
-    } else if (hasMissingWarnings) {
-      return {
-        state: 'partial',
-        message: `Cost tracking partial - ${this.missingModelWarnings.size} models unconfigured`
-      };
-    } else {
-      return { state: 'active', message: 'Cost tracking active' };
-    }
-  }
-}
-```
-
-**Status Line Error States Implementation:**
+**Status Line Implementation:**
 ```typescript
 // In src/utils/costStatusLineProvider.ts
 class CostStatusLineProvider {
   getCostVariables(sessionId: string): Record<string, string> {
-    const trackingStatus = this.costCalculator.getTrackingStatus();
+    const sessionCost = this.costCalculator.getSessionCost(sessionId);
 
-    switch (trackingStatus.state) {
-      case 'disabled':
-        return this.getDisabledVariables('Cost tracking disabled');
-      case 'unconfigured':
-        return this.getDisabledVariables('No pricing configured');
-      case 'partial':
-        const sessionCost = this.costCalculator.getSessionCost(sessionId);
-        if (sessionCost) {
-          const variables = this.getActiveVariables(sessionCost);
-          variables.trackingStatus = 'Partial';
-          variables.statusMessage = trackingStatus.message;
-          return variables;
-        }
-        return this.getDisabledVariables('Partial tracking - no usage');
-      case 'active':
-        const activeCost = this.costCalculator.getSessionCost(sessionId);
-        return activeCost ? this.getActiveVariables(activeCost) : this.getDisabledVariables('No usage yet');
-      default:
-        return this.getDisabledVariables('Unknown state');
+    if (!this.costCalculator.config.enabled) {
+      return this.getDisabledVariables('Cost tracking disabled');
     }
+
+    if (!sessionCost) {
+      return this.getDisabledVariables('No usage yet');
+    }
+
+    // Always show actual costs, even if some models have zero cost due to missing pricing
+    return this.getActiveVariables(sessionCost);
   }
 
   private getDisabledVariables(message: string): Record<string, string> {
@@ -1495,9 +1398,7 @@ class CostStatusLineProvider {
       sessionDuration: '--',
       modelCosts: '{}',
       topModel: '--',
-      topModelCost: '--',
-      trackingStatus: 'Disabled',
-      statusMessage: message
+      topModelCost: '--'
     };
   }
 }
@@ -1505,14 +1406,13 @@ class CostStatusLineProvider {
 
 **Error Message Examples:**
 - **Startup Error**: "Invalid cost configuration: Model 'gpt-4' must use format 'openai,gpt-4'. Update config to use provider,model format."
-- **Runtime Warning**: "Cost tracking: No pricing configured for model 'anthropic,claude-3.5-sonnet'. Cost will be 0. Add: {'anthropic,claude-3.5-sonnet': {'input_tokens_per_million': 3.00, 'output_tokens_per_million': 15.00}}"
-- **Status Line**: Shows "Partial (2 models unconfigured)" when some models lack pricing
+- **Startup Warning**: "Cost tracking: Missing pricing for 2 router models: anthropic,claude-3.5-sonnet, openai,gpt-4. Costs will be 0 for these models. Add missing pricing to config or press Enter to continue..."
 
 **Graceful Degradation Strategies:**
-- **Partial Tracking**: Continue tracking costs for configured models while ignoring unconfigured ones
+- **Proactive Awareness**: Users know about missing pricing before using the router
+- **Mandatory Confirmation**: Users must explicitly accept partial tracking
 - **Performance First**: Never block API requests due to cost calculation errors
-- **User Control**: Allow users to disable cost tracking entirely if experiencing issues
-- **Clear Feedback**: Provide immediate visual feedback in status line about tracking state
+- **Clean Status Line**: Show actual costs without confusing status messages
 
 ## Key Insights from Session Scope Analysis
 
@@ -1676,5 +1576,37 @@ interface CostModuleConfig {
 *Note: Comprehensive error handling is detailed in the Error Handling section above.*
 
 ---
+
+## Revision Notes
+
+### 2025-11-11: Improved Configuration Validation Approach
+
+**Key Changes:**
+
+1. **Startup Configuration Validation**
+   - Added router model extraction from Router configuration (default, background, think, longContext, webSearch)
+   - Implemented mandatory user prompting for missing pricing
+   - Router startup blocks until user explicitly confirms acceptance of missing pricing
+
+2. **Runtime Behavior Updates**
+   - Removed runtime missing model warnings and tracking
+   - Silent zero cost for unconfigured models (no logging)
+   - Simplified cost calculation logic
+
+3. **Status Line Provider Updates**
+   - Removed complex tracking status logic ("Partial", "Active", etc.)
+   - Simplified to always show actual calculated costs
+   - Removed "Partial" status indicators from status line variables
+
+4. **Error Handling Strategy Updates**
+   - Updated to reflect proactive startup validation
+   - Removed runtime validation approach
+   - Focus on mandatory user confirmation for missing pricing
+
+**Benefits of Updated Approach:**
+- **Proactive Detection**: Users know about missing pricing before using the router
+- **Mandatory Confirmation**: Ensures users explicitly accept partial tracking
+- **Clean Status Line**: Shows actual costs without confusing status messages
+- **Accurate Tracking**: Reflects true spending (0 for unconfigured models is correct)
 
 
