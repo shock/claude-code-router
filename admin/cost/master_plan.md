@@ -972,7 +972,6 @@ Testing is integrated throughout each phase to ensure functionality confidence a
 
 1. **Code Quality and Optimization**
    - Code review and optimization
-   - Performance profiling and optimization
    - Memory usage optimization
    - Error handling refinement
 
@@ -1067,76 +1066,6 @@ cost = (input_tokens * input_price_per_million / 1,000,000) +
 - Automatic cleanup on session end via LRU eviction (100-entry capacity)
 - **Simplified approach** - cost tracking follows exact same pattern as token usage tracking
 
-**Performance Considerations:**
-- Minimal impact on request processing
-- Efficient cost calculation algorithms
-- Optimized session cost storage
-- **Performance Optimization Strategies:**
-  - **Caching**: Cache cost calculations per session-model combination to avoid redundant calculations
-  - **Efficient Data Structures**: Use Map-based LRU cache with O(1) operations for session cost storage
-  - **Asynchronous Processing**: Defer cost calculation to avoid blocking request processing
-  - **Batch Processing**: Aggregate cost updates for high-volume scenarios
-  - **Performance Profiling**: Implement benchmarking and monitoring for cost calculation overhead
-  - **Batch Processing Strategy:**
-    ```typescript
-    // For high-throughput scenarios, batch cost updates
-    class BatchCostProcessor {
-      private batchQueue: Array<{
-        sessionId: string;
-        model: string;
-        inputTokens: number;
-        outputTokens: number;
-      }> = [];
-      private batchSize = 10;
-      private batchTimeout = 100; // ms
-
-      constructor(private costCalculator: CostCalculator) {}
-
-      queueCostUpdate(
-        sessionId: string,
-        model: string,
-        inputTokens: number,
-        outputTokens: number
-      ): void {
-        this.batchQueue.push({ sessionId, model, inputTokens, outputTokens });
-
-        if (this.batchQueue.length >= this.batchSize) {
-          this.processBatch();
-        } else if (this.batchQueue.length === 1) {
-          // Start timeout for first item
-          setTimeout(() => this.processBatch(), this.batchTimeout);
-        }
-      }
-
-      private processBatch(): void {
-        if (this.batchQueue.length === 0) return;
-
-        const batch = [...this.batchQueue];
-        this.batchQueue = [];
-
-        // Aggregate costs by session and model
-        const aggregated = batch.reduce((acc, item) => {
-          const key = `${item.sessionId}:${item.model}`;
-          if (!acc[key]) {
-            acc[key] = { ...item, inputTokens: 0, outputTokens: 0 };
-          }
-          acc[key].inputTokens += item.inputTokens;
-          acc[key].outputTokens += item.outputTokens;
-          return acc;
-        }, {} as Record<string, any>);
-
-        // Process aggregated costs
-        Object.values(aggregated).forEach(item => {
-          this.costCalculator.calculateCost(
-            item.sessionId,
-            item.model,
-            item.inputTokens,
-            item.outputTokens
-          );
-        });
-      }
-    }
-    ```
 
 ### Status Line Integration Strategy
 
@@ -1257,7 +1186,6 @@ Based on session scope analysis, cost tracking leverages existing infrastructure
 **Medium Risk Areas:**
 - Token capture integration points
 - Session management integration
-- Performance impact assessment
 
 **High Risk Areas:**
 - Complex error handling scenarios
@@ -1268,7 +1196,6 @@ Based on session scope analysis, cost tracking leverages existing infrastructure
 - Comprehensive testing at each phase
 - Gradual integration with existing systems
 - Extensive error handling and logging
-- Performance profiling and optimization
 
 ## Success Criteria
 
@@ -1279,7 +1206,6 @@ Based on session scope analysis, cost tracking leverages existing infrastructure
 - [ ] Error handling provides graceful degradation
 - [ ] All existing tests pass
 - [ ] Manual testing confirms expected behavior
-- [ ] Performance impact is minimal
 - [ ] Documentation is comprehensive and accurate
 
 ## Migration Considerations
@@ -1300,5 +1226,3 @@ Based on session scope analysis, cost tracking leverages existing infrastructure
 - **Runtime behavior**: Silent zero cost for unconfigured models, no warnings
 - **Status line**: Shows actual costs, not "Partial" status indicators
 - **User experience**: Mandatory confirmation for configuration issues during startup
-
-
