@@ -1349,121 +1349,15 @@ cost = (input_tokens * input_price_per_million / 1,000,000) +
 
 **Implementation Specifications:**
 
-**Consolidated Validation Implementation:**
-```typescript
-// In src/config/costConfig.ts - consolidated validation approach
-class CostConfigValidator {
-  static validateCostConfig(config: CostTrackingConfig, routerConfig: any): ValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-    const missingPricing: string[] = [];
+**Validation Approach:**
+- All configuration validation consolidated in Phase 1 implementation
+- User prompting for critical configuration issues during startup
+- Runtime behavior returns 0 cost for unconfigured models without warnings
 
-    // Validate pricing values
-    if (config.model_pricing) {
-      for (const [model, pricing] of Object.entries(config.model_pricing)) {
-        if (!this.isValidModelFormat(model)) {
-          errors.push(`Invalid model format: "${model}". Expected format: "<provider>,<model>"`);
-        }
-        if (pricing.input_tokens_per_million <= 0) {
-          errors.push(`Invalid input pricing for ${model}: must be positive`);
-        }
-        if (pricing.output_tokens_per_million <= 0) {
-          errors.push(`Invalid output pricing for ${model}: must be positive`);
-        }
-        if (pricing.currency && !this.isValidCurrency(pricing.currency)) {
-          warnings.push(`Unsupported currency "${pricing.currency}" for ${model}, using default USD`);
-        }
-      }
-    }
-
-    // Validate default currency
-    if (config.default_currency && !this.isValidCurrency(config.default_currency)) {
-      warnings.push(`Unsupported default currency "${config.default_currency}", using USD`);
-    }
-
-    // Check for missing pricing on router-used models
-    if (config.enabled && routerConfig) {
-      const routerModels = this.extractRouterModels(routerConfig);
-      missingPricing.push(...this.findMissingPricing(routerModels, config.model_pricing || {}));
-    }
-
-    return { errors, warnings, missingPricing };
-  }
-
-  static async promptUserForConfirmation(validation: ValidationResult): Promise<boolean> {
-    if (validation.errors.length > 0 || validation.missingPricing.length > 0) {
-      console.warn('\n=== Cost Tracking Configuration Issues ===');
-
-      if (validation.errors.length > 0) {
-        console.error('Configuration errors:');
-        validation.errors.forEach(error => console.error(`  - ${error}`));
-      }
-
-      if (validation.missingPricing.length > 0) {
-        console.warn(`Missing pricing for ${validation.missingPricing.length} router models:`);
-        validation.missingPricing.forEach(model => {
-          console.warn(`  - ${model}: Cost will be 0`);
-        });
-      }
-
-      console.warn('\nPress Enter to continue with cost tracking disabled, or Ctrl+C to exit and fix configuration...');
-
-      try {
-        const readline = require('readline');
-        const rl = readline.createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
-
-        return new Promise((resolve) => {
-          rl.question('', () => {
-            rl.close();
-            resolve(false); // Disable cost tracking
-          });
-        });
-      } catch (error) {
-        console.error('Error reading user input, disabling cost tracking');
-        return false;
-      }
-    }
-
-    return true; // No issues, enable cost tracking
-  }
-}
-```
-
-
-**Status Line Implementation:**
-```typescript
-// In src/utils/costStatusLineProvider.ts
-class CostStatusLineProvider {
-  getCostVariables(sessionId: string): Record<string, string> {
-    const sessionCost = this.costCalculator.getSessionCost(sessionId);
-
-    if (!this.costCalculator.config.enabled) {
-      return this.getDisabledVariables('Cost tracking disabled');
-    }
-
-    if (!sessionCost) {
-      return this.getDisabledVariables('No usage yet');
-    }
-
-    // Always show actual costs, even if some models have zero cost due to missing pricing
-    return this.getActiveVariables(sessionCost);
-  }
-
-  private getDisabledVariables(message: string): Record<string, string> {
-    return {
-      totalCost: message,
-      totalCostRaw: '0',
-      sessionDuration: '--',
-      modelCosts: '{}',
-      topModel: '--',
-      topModelCost: '--'
-    };
-  }
-}
-```
+**Status Line Behavior:**
+- Shows actual calculated costs, not "Partial" status indicators
+- Graceful degradation for disabled or error states
+- Clean display of actual dollar amounts being spent
 
 **Error Message Examples:**
 - **Startup Error**: "Invalid cost configuration: Model 'gpt-4' must use format 'openai,gpt-4'. Update config to use provider,model format."
