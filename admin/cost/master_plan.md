@@ -29,68 +29,31 @@
 - **Graceful degradation** when cost tracking is disabled or misconfigured
 - **Error resilience** - comprehensive error handling with fallback to disabled state
 
-## Current Architecture Analysis
+## Architecture Overview
 
-### Existing Token Tracking Architecture
+### Current Architecture Integration Points
 
-The router already tracks token usage from API responses. We need to:
-- Hook into existing token capture points
-- Access model information from routing decisions
-- Integrate with session management
+The router already provides the necessary infrastructure:
+- **Token tracking** from API responses via `payload.usage`
+- **Session management** using LRU cache with automatic lifecycle
+- **Status line system** with variable substitution and custom formatting
+- **Configuration system** with JSON-based schema
 
-### Status Line Architecture
+### Proposed Architecture
 
-The status line system already supports:
-- Multiple module types
-- Variable substitution
-- Custom formatting
-- Color and icon configuration
-
-### Configuration System
-
-The router uses a JSON configuration file with:
-- Provider configurations
-- Routing rules
-- Status line settings
-- Will need to extend with cost tracking configuration
-
-## Proposed Architecture
-
-### File Organization and Component Overview
-
-**New File Structure:**
-- `src/utils/costCalculator.ts` - Core cost calculation service (consistent with existing utils pattern)
-- `src/utils/costStatusLineProvider.ts` - Status line variable provider for costs
+**New Components:**
+- `src/utils/costCalculator.ts` - Core cost calculation service
+- `src/utils/costStatusLineProvider.ts` - Status line variable provider
 - `src/types/cost.ts` - Type definitions for cost tracking
-- `src/config/costConfig.ts` - Cost configuration validation and parsing
-- `tests/utils/costCalculator.test.ts` - Unit tests for cost calculator
-- `tests/utils/costStatusLineProvider.test.ts` - Unit tests for status line provider
+- `src/config/costConfig.ts` - Configuration validation and parsing
 
-**Modified Files:**
-- `ui/src/types.ts` - Extend configuration schema with cost tracking
-- `src/utils/sessionManager.ts` - Integrate cost tracking with session management
-- `src/utils/statusline.ts` - Add cost module type
-- `src/index.ts` - Initialize cost tracking service
+**Integration Strategy:**
+- **Token capture**: Hook into existing `onSend` hook for API responses
+- **Session management**: Use existing LRU cache patterns with same session ID keys
+- **Status line**: Register provider and support cost module type
+- **Configuration**: Extend existing schema with cost tracking section
 
-**Core Components:**
-
-**CostCalculator Service** - Core cost calculation:
-- Located in `src/utils/costCalculator.ts` (consistent with existing utils pattern)
-- Inherits from existing service patterns
-- Uses separate LRU cache with same capacity as `sessionUsageCache` for consistency
-- Calculates costs from token counts using model-specific pricing
-- Maintains session-level cost accumulation using existing session ID patterns
-- Provides cost data to status line and other consumers
-
-**CostStatusLineProvider** - Status line integration:
-- Located in `src/utils/costStatusLineProvider.ts` (consistent with existing utils pattern)
-- Implements status line variable provider interface
-- Provides cost variables for template substitution
-- Handles formatting and display options
-
-### Configuration Integration
-
-**Cost Tracking Configuration:**
+**Configuration Example:**
 ```json
 {
   "CostTracking": {
@@ -102,13 +65,7 @@ The router uses a JSON configuration file with:
         "output_tokens_per_million": 10.00
       }
     }
-  }
-}
-```
-
-**Status Line Configuration:**
-```json
-{
+  },
   "StatusLine": {
     "default": {
       "modules": [
@@ -123,24 +80,6 @@ The router uses a JSON configuration file with:
   }
 }
 ```
-
-### Integration Strategy
-
-**Token Capture Integration:**
-- Hook into existing API response processing
-- Extract token counts and model information
-- Pass to cost calculator for cost calculation
-
-**Session Management Integration:**
-- **Follow existing token tracking patterns** - use same session ID keys as `sessionUsageCache`
-- **No complex session events needed** - existing LRU cache handles lifecycle automatically
-- **Session IDs extracted from metadata** - follow pattern from `src/utils/router.ts:185-190`
-- **Simplified approach** - cost tracking follows exact same pattern as token usage tracking
-
-**Status Line Integration:**
-- Register cost status line provider
-- Support cost module type with template variables
-- Handle formatting and display options
 
 ## Implementation Steps
 
@@ -1369,75 +1308,26 @@ cost = (input_tokens * input_price_per_million / 1,000,000) +
 - **Performance First**: Never block API requests due to cost calculation errors
 - **Clean Status Line**: Show actual costs without confusing status messages
 
-## Key Insights from Session Scope Analysis
+## Session Management Strategy
 
-Based on the session scope analysis (`admin/session_scope.md`), several important findings simplify the cost tracking implementation:
+### Session Lifecycle Approach
 
-### Session Lifecycle Simplification
-- **Session events are unnecessary** for cost tracking - existing token usage tracking pattern provides everything needed
-- **Session IDs are extracted from metadata** - not generated by the router (from `metadata.user_id` at `src/utils/router.ts:185-190`)
-- **LRU cache handles session lifecycle automatically** - no explicit session start/end events needed
-- **Existing patterns are sufficient** - cost tracking can follow the exact same patterns as token usage tracking
+Based on session scope analysis, cost tracking leverages existing infrastructure:
+- **No session events needed** - follows existing token tracking patterns
+- **Session IDs extracted from metadata** (from `metadata.user_id` at `src/utils/router.ts:185-190`)
+- **LRU cache handles lifecycle automatically** - no explicit start/end events
+- **Proven pattern** - uses same session ID keys as `sessionUsageCache`
 
-### Implementation Benefits
-- **No complex event system** needed - existing infrastructure handles session management
-- **Proven pattern** already working for token tracking
-- **Automatic cleanup** via LRU cache eviction
-- **Consistent architecture** with existing codebase
+### Integration Points
 
-### Recommended Approach
-- **Use existing LRU cache patterns** for cost storage
-- **Follow token usage tracking approach** - session ID as primary key
-- **No session events needed** - existing pattern handles lifecycle
-- **Automatic initialization** when session ID first appears
+**Token Capture:**
+- **Primary Hook**: Extend existing `onSend` hook in `src/index.ts` (lines 374-377)
+- **Token Data**: Extract from `payload.usage` containing `input_tokens` and `output_tokens`
+- **Model Information**: Extract from `req.body.model` set by router at line 224 in `src/utils/router.ts`
+- **Session Association**: Use existing `req.sessionId` from metadata
+- **Asynchronous Processing**: Use `process.nextTick()` to avoid blocking request processing
 
-## Technical Implementation Details
-
-### Configuration Schema Extension
-
-**Required Schema Updates:**
-```typescript
-// Add to ui/src/types.ts Config interface (line 52)
-interface Config {
-  // ... existing fields ...
-  CostTracking?: CostTrackingConfig;
-}
-
-interface CostTrackingConfig {
-  enabled?: boolean;
-  default_currency?: string;
-  model_pricing?: Record<string, ModelPricing>;
-}
-
-interface ModelPricing {
-  input_tokens_per_million: number;
-  output_tokens_per_million: number;
-  currency?: string;
-}
-```
-
-**Validation Rules:**
-- Pricing values must be positive numbers
-- Currency codes must be valid ISO 4217 codes
-- Model names must use `<provider>,<model>` format
-- All configuration fields are optional
-
-### Status Line Module Properties
-
-**Cost Module Configuration:**
-```typescript
-interface CostModuleConfig {
-  type: 'cost';
-  icon?: string;
-  text?: string;
-  color?: string;
-  format?: 'currency' | 'decimal' | 'scientific' | 'compact';
-  precision?: number;
-  show_breakdown?: boolean;
-}
-```
-
-**Available Variables:**
+**Status Line Variables:**
 - `{{totalCost}}` - Total session cost (formatted)
 - `{{totalCostRaw}}` - Total session cost (raw number)
 - `{{sessionDuration}}` - Session duration
@@ -1445,22 +1335,6 @@ interface CostModuleConfig {
 - `{{topModel}}` - Most expensive model used
 - `{{topModelCost}}` - Cost of most expensive model
 - `{{cost.<provider>,<model>}}` - Cost for specific model
-
-### Integration Points
-
-**Token Capture Integration:**
-- **Primary Hook**: Extend existing `onSend` hook in `src/index.ts` (lines 374-377)
-- **Token Data**: Extract from `payload.usage` containing `input_tokens` and `output_tokens`
-- **Model Information**: Extract from `req.body.model` set by router at line 224 in `src/utils/router.ts`
-- **Session Association**: Use existing `req.sessionId` extracted from `metadata.user_id` at lines 185-190 in `src/utils/router.ts`
-- **Asynchronous Processing**: Use `process.nextTick()` to avoid blocking request processing
-
-**Session Management Integration:**
-- Use existing session ID system (same keys as `sessionUsageCache`)
-- **No session events needed** - existing token tracking pattern handles lifecycle automatically
-- **Session IDs extracted from metadata** - follow pattern from `src/utils/router.ts:185-190`
-- Maintain session cost persistence using separate LRU cache with same capacity and patterns
-- **Simplified approach** - cost tracking follows exact same pattern as token usage tracking
 
 ## Benefits of New Architecture
 
@@ -1526,43 +1400,16 @@ interface CostModuleConfig {
 - **Backward compatibility** - existing configurations continue to work
 - **Error resilience** - cost tracking fails gracefully without disrupting router
 
-## Technical Implementation Notes
-
-*Note: Comprehensive error handling is detailed in the Error Handling section above.*
-
 ---
 
 ## Revision Notes
 
-### 2025-11-11: Consolidated Configuration Validation with User Prompting
+### 2025-11-11: Consolidated Configuration Validation
 
 **Key Changes:**
-
-1. **Consolidated Validation Architecture**
-   - **Moved all validation to Phase 1**: Configuration validation now happens during initial config loading
-   - **Integrated user prompting**: Critical configuration issues now require user confirmation during startup
-   - **Single validation approach**: Combined basic validation and router model validation into one cohesive system
-
-2. **Enhanced User Prompting Logic**
-   - **Critical errors** (invalid model format, negative pricing): User must confirm to continue
-   - **Missing pricing warnings**: User must confirm to continue with partial tracking
-   - **Non-critical warnings** (unsupported currencies): Log only, no user prompt needed
-   - **Blocking behavior**: Router startup waits for user input on critical issues
-
-3. **Runtime Behavior Updates**
-   - **Silent zero cost**: For unconfigured models, return cost of 0 without logging
-   - **Calculate configured models**: Track costs normally for models with pricing
-   - **No runtime warnings**: Remove runtime missing model tracking and warnings
-
-4. **Status Line Provider Updates**
-   - **Show actual costs**: Display calculated total cost amount, not "Partial" status
-   - **Include zero costs**: Unconfigured models contribute 0 to total, which is accurate
-   - **Focus on amount**: Users see actual dollar amount being spent
-
-**Benefits of Consolidated Approach:**
-- **Early detection**: Configuration issues caught during router startup
-- **User awareness**: Users must explicitly accept configuration issues before proceeding
-- **Clean separation**: Validation logic consolidated in Phase 1 where it belongs
-- **Graceful degradation**: Router continues with cost tracking disabled if user chooses
+- **Moved all validation to Phase 1** with user prompting for critical issues
+- **Runtime behavior**: Silent zero cost for unconfigured models, no warnings
+- **Status line**: Shows actual costs, not "Partial" status indicators
+- **User experience**: Mandatory confirmation for configuration issues during startup
 
 
