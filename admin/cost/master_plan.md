@@ -661,6 +661,68 @@ interface CostModuleConfig {
 
 ### Redundancies Found:
 
+**Session Storage Redundancy:**
+- **Issue**: The master plan proposes creating new session storage mechanisms for cost tracking but doesn't leverage the existing `sessionUsageCache` LRU cache infrastructure that already tracks token usage per session ID.
+- **Analysis**: The codebase already has a well-established `sessionUsageCache` (in `src/utils/cache.ts`) that stores token usage per session ID. This infrastructure already handles session management, LRU eviction, and token tracking. Creating a separate session storage system for costs would be redundant and inefficient.
+- **Recommendation**: Update the master plan to leverage the existing `sessionUsageCache` infrastructure for cost storage instead of creating new session storage mechanisms. Extend the existing cache to store cost data alongside token usage, or create a separate cost cache that follows the same patterns.
+
 ### Inconsistencies Found:
 
+**File Organization Inconsistency:**
+- **Issue**: The master plan proposes placing new files in `src/services/` directory, but the existing codebase consistently uses `src/utils/` pattern for utility and service files
+- **Analysis**: Current codebase has files like `src/utils/statusline.ts`, `src/utils/cache.ts`, `src/utils/router.ts`, etc. No `src/services/` directory exists. Placing cost-related files in `src/services/` would break the established pattern and create confusion about where to find different types of functionality
+- **Recommendation**: Update the file organization in the master plan to place all new cost-related files in `src/utils/` directory instead of `src/services/` to maintain consistency with existing patterns
+
 ### Missing Critical Details:
+
+**Performance Impact Analysis:**
+- **Issue**: The master plan doesn't adequately address the potential performance impact of real-time cost calculation on every API response, particularly in high-throughput scenarios.
+- **Analysis**: The cost calculation will be triggered on every API response (in the existing `onSend` hook), which could impact request processing speed. The plan mentions "minimal impact" but doesn't provide specific strategies for performance optimization or measurement.
+- **Recommendation**: Add specific performance optimization strategies to the master plan, such as:
+  - Caching cost calculations to avoid recalculation
+  - Using efficient data structures for session cost storage
+  - Performance profiling and benchmarking requirements
+  - Asynchronous cost calculation where possible
+  - Batch processing strategies for high-volume scenarios
+
+**Error Handling Specification Gaps:**
+- **Issue**: The master plan mentions error handling but lacks specific details about startup validation, runtime validation, and user experience during configuration issues, particularly for missing model pricing.
+- **Analysis**: The plan states to log warnings "only when unconfigured models are actually used" but doesn't specify:
+  - When exactly to log warnings (at startup vs runtime)
+  - How to handle partial cost tracking when some models are configured and others aren't
+  - User experience during configuration issues
+  - Clear error messages with configuration guidance
+- **Recommendation**: Add detailed error handling specifications to the master plan, including:
+  - Startup validation for pricing configuration with clear error messages
+  - Runtime validation strategy for missing model pricing with specific logging timing
+  - User experience design for configuration issues with graceful degradation
+  - Clear error messages with specific configuration guidance and examples
+  - Graceful degradation strategies for partial cost tracking when only some models are configured
+
+**Token Capture Integration Details:**
+- **Issue**: The master plan mentions integrating with token capture but lacks specific details about the exact integration point and how to extract model information from routing decisions.
+- **Analysis**: The existing codebase captures token usage in the `onSend` hook (lines 329-373 in index.ts) and stores it in `sessionUsageCache`. The master plan doesn't specify:
+  - The exact hook or location for cost calculation integration
+  - How to extract model information that's used for routing decisions
+  - How to associate API responses with specific session IDs
+  - How to handle the asynchronous nature of cost calculation
+- **Recommendation**: Add specific integration details to the master plan, including:
+  - Exact hook location for cost calculation (likely in the existing `onSend` hook at line 374-377 in index.ts)
+  - Method for extracting model information from routing context (the router sets `req.body.model` at line 224 in router.ts)
+  - Session ID association strategy (session IDs are already extracted from metadata.user_id at lines 185-190 in router.ts)
+  - Asynchronous cost calculation approach to avoid blocking request processing
+  - Integration with existing `sessionUsageCache` patterns for consistency
+
+**Status Line Variable Provider Integration:**
+- **Issue**: The master plan mentions status line integration but lacks specific details about how the cost status line provider integrates with the existing status line variable system and how it handles dynamic model-specific variables.
+- **Analysis**: The existing status line system (in `src/utils/statusline.ts`) supports variable substitution through the `replaceVariables` function and script execution. The master plan doesn't specify:
+  - How the cost provider integrates with the existing status line architecture
+  - How to handle dynamic model-specific variables like `{{cost.openai,gpt-4}}`
+  - How the cost module type is registered and configured
+  - How to handle disabled states and error conditions in the status line
+- **Recommendation**: Add specific status line integration details to the master plan, including:
+  - Integration pattern for cost status line provider with existing variable system
+  - Strategy for dynamic model-specific variable generation
+  - Registration and configuration of cost module type
+  - Error handling and disabled state display in status line
+  - Template variable substitution implementation details
