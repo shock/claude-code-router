@@ -399,13 +399,14 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    }
    ```
 
-3. **Implement Configuration Validation**
-   - Create `src/config/costConfig.ts` with comprehensive validation:
+3. **Implement Configuration Validation with User Prompting**
+   - Create `src/config/costConfig.ts` with comprehensive validation and user prompting:
    ```typescript
    // src/config/costConfig.ts
    interface ValidationResult {
      errors: string[];
      warnings: string[];
+     missingPricing: string[];
    }
 
    interface CostTrackingConfig {
@@ -415,9 +416,10 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    }
 
    class CostConfigValidator {
-     static validateCostConfig(config: CostTrackingConfig): ValidationResult {
+     static validateCostConfig(config: CostTrackingConfig, routerConfig: any): ValidationResult {
        const errors: string[] = [];
        const warnings: string[] = [];
+       const missingPricing: string[] = [];
 
        // Validate pricing values
        if (config.model_pricing) {
@@ -442,7 +444,30 @@ Testing is integrated throughout each phase to ensure functionality confidence a
          warnings.push(`Unsupported default currency "${config.default_currency}", using USD`);
        }
 
-       return { errors, warnings };
+       // Check for missing pricing on router-used models
+       if (config.enabled && routerConfig) {
+         const routerModels = this.extractRouterModels(routerConfig);
+         missingPricing.push(...this.findMissingPricing(routerModels, config.model_pricing || {}));
+       }
+
+       return { errors, warnings, missingPricing };
+     }
+
+     static extractRouterModels(routerConfig: any): Set<string> {
+       const routerModels = new Set<string>();
+       const routerFields = ['default', 'background', 'think', 'longContext', 'webSearch'];
+
+       routerFields.forEach(field => {
+         if (routerConfig[field]) {
+           routerModels.add(routerConfig[field]);
+         }
+       });
+
+       return routerModels;
+     }
+
+     static findMissingPricing(routerModels: Set<string>, modelPricing: Record<string, any>): string[] {
+       return Array.from(routerModels).filter(model => !modelPricing[model]);
      }
 
      static isValidModelFormat(model: string): boolean {
@@ -453,10 +478,50 @@ Testing is integrated throughout each phase to ensure functionality confidence a
        const validCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'CNY'];
        return validCurrencies.includes(currency.toUpperCase());
      }
+
+     static async promptUserForConfirmation(validation: ValidationResult): Promise<boolean> {
+       if (validation.errors.length > 0 || validation.missingPricing.length > 0) {
+         console.warn('\n=== Cost Tracking Configuration Issues ===');
+
+         if (validation.errors.length > 0) {
+           console.error('Configuration errors:');
+           validation.errors.forEach(error => console.error(`  - ${error}`));
+         }
+
+         if (validation.missingPricing.length > 0) {
+           console.warn(`Missing pricing for ${validation.missingPricing.length} router models:`);
+           validation.missingPricing.forEach(model => {
+             console.warn(`  - ${model}: Cost will be 0`);
+           });
+         }
+
+         console.warn('\nPress Enter to continue with cost tracking disabled, or Ctrl+C to exit and fix configuration...');
+
+         try {
+           const readline = require('readline');
+           const rl = readline.createInterface({
+             input: process.stdin,
+             output: process.stdout
+           });
+
+           return new Promise((resolve) => {
+             rl.question('', () => {
+               rl.close();
+               resolve(false); // Disable cost tracking
+             });
+           });
+         } catch (error) {
+           console.error('Error reading user input, disabling cost tracking');
+           return false;
+         }
+       }
+
+       return true; // No issues, enable cost tracking
+     }
    }
 
    // Integration with existing config loading
-   export function validateAndInitializeCostConfig(config: any): CostTrackingConfig {
+   export async function validateAndInitializeCostConfig(config: any): Promise<CostTrackingConfig> {
      const costConfig = config.CostTracking || {};
 
      // Apply defaults
@@ -466,21 +531,26 @@ Testing is integrated throughout each phase to ensure functionality confidence a
        model_pricing: costConfig.model_pricing || {}
      };
 
-     // Validate configuration
-     const validation = CostConfigValidator.validateCostConfig(validatedConfig);
+     // Only validate if cost tracking is enabled
+     if (validatedConfig.enabled) {
+       // Validate configuration
+       const validation = CostConfigValidator.validateCostConfig(validatedConfig, config.Router);
 
-     // Log warnings but don't block startup
-     if (validation.warnings.length > 0) {
-       console.warn('Cost tracking configuration warnings:');
-       validation.warnings.forEach(warning => console.warn(`  - ${warning}`));
-     }
+       // Log non-critical warnings
+       if (validation.warnings.length > 0) {
+         console.warn('Cost tracking configuration warnings:');
+         validation.warnings.forEach(warning => console.warn(`  - ${warning}`));
+       }
 
-     // Log errors and disable cost tracking if critical errors exist
-     if (validation.errors.length > 0) {
-       console.error('Cost tracking configuration errors:');
-       validation.errors.forEach(error => console.error(`  - ${error}`));
-       console.error('Cost tracking will be disabled due to configuration errors');
-       validatedConfig.enabled = false;
+       // Handle critical issues with user prompting
+       if (validation.errors.length > 0 || validation.missingPricing.length > 0) {
+         const shouldEnable = await CostConfigValidator.promptUserForConfirmation(validation);
+         validatedConfig.enabled = shouldEnable;
+
+         if (!shouldEnable) {
+           console.warn('Cost tracking disabled due to configuration issues');
+         }
+       }
      }
 
      return validatedConfig;
@@ -491,11 +561,15 @@ Testing is integrated throughout each phase to ensure functionality confidence a
      - Pricing values must be positive numbers
      - Currency codes must be valid ISO 4217 codes
      - All configuration fields are optional with sensible defaults
+   - **User Prompting Logic**:
+     - **Critical errors** (invalid model format, negative pricing): User must confirm to continue
+     - **Missing pricing warnings**: User must confirm to continue with partial tracking
+     - **Non-critical warnings** (unsupported currencies): Log only, no user prompt needed
+     - **Blocking behavior**: Router startup waits for user input on critical issues
    - **Error Handling**:
-     - Log warnings for non-critical issues (unsupported currencies)
-     - Log errors and disable cost tracking for critical issues (invalid model format, negative pricing)
-     - Never block router startup due to cost configuration issues
-   - **Integration**: Hook into existing config loading in `src/utils/index.ts`
+     - User must explicitly confirm to continue with configuration issues
+     - Cost tracking disabled by default on critical errors unless user confirms
+     - Never block router startup entirely due to cost configuration issues
 
 4. **Implement Configuration Integration**
    - **Configuration Loading Integration**: Extend existing config loading in `src/utils/index.ts`:
@@ -503,11 +577,11 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    // In src/utils/index.ts - extend existing config loading
    import { validateAndInitializeCostConfig } from './config/costConfig';
 
-   export function loadConfig(): RouterConfig {
+   export async function loadConfig(): Promise<RouterConfig> {
      // ... existing config loading logic ...
 
-     // Validate and initialize cost tracking configuration
-     const costTrackingConfig = validateAndInitializeCostConfig(config);
+     // Validate and initialize cost tracking configuration (async for user prompting)
+     const costTrackingConfig = await validateAndInitializeCostConfig(config);
 
      return {
        ...config,
@@ -523,8 +597,8 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    import { CostCalculator } from './utils/costCalculator';
    import { CostStatusLineProvider } from './utils/costStatusLineProvider';
 
-   // Load configuration with cost tracking
-   const config = loadConfig();
+   // Load configuration with cost tracking (async for user prompting)
+   const config = await loadConfig();
    const costTrackingConfig = config.CostTracking;
 
    // Initialize cost calculator if enabled
@@ -614,58 +688,6 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Store per-model cost breakdowns using the same session ID keys
    - Support session duration tracking using existing session management patterns
    - Implement cost aggregation logic integrated with existing cache operations
-
-3. **Add Startup Configuration Validation**
-   - **Router Model Extraction**: Extract all models from Router configuration (default, background, think, longContext, webSearch)
-   - **Pricing Validation**: Check which router-used models have pricing configured
-   - **Mandatory User Prompt**: If any router-used models lack pricing, display warning and require user confirmation
-   - **Block Startup**: Router will not start until user explicitly confirms acceptance of missing pricing
-   ```typescript
-   // In src/config/costConfig.ts
-   class CostConfigValidator {
-     static validateRouterModels(config: any): { missingPricing: string[] } {
-       const routerModels = new Set<string>();
-       const routerConfig = config.Router;
-
-       // Extract all models from router configuration
-       if (routerConfig) {
-         const routerFields = ['default', 'background', 'think', 'longContext', 'webSearch'];
-         routerFields.forEach(field => {
-           if (routerConfig[field]) {
-             routerModels.add(routerConfig[field]);
-           }
-         });
-       }
-
-       // Check which router models have pricing configured
-       const costConfig = config.CostTracking || {};
-       const modelPricing = costConfig.model_pricing || {};
-       const missingPricing = Array.from(routerModels).filter(model => !modelPricing[model]);
-
-       return { missingPricing };
-     }
-   }
-
-   // In startup validation logic
-   const { missingPricing } = CostConfigValidator.validateRouterModels(config);
-   if (missingPricing.length > 0) {
-     console.warn(`Cost tracking: Missing pricing for ${missingPricing.length} router models:`);
-     missingPricing.forEach(model => {
-       console.warn(`  - ${model}: Cost will be 0`);
-     });
-     console.warn('Add missing pricing to config or press Enter to continue with partial tracking...');
-     // Wait for user input before continuing
-     await waitForUserConfirmation();
-   }
-   ```
-   - **Runtime Behavior**:
-     - **Silent Zero Cost**: For unconfigured models, return cost of 0 without logging
-     - **Calculate Configured Models**: Track costs normally for models with pricing
-     - **No Runtime Warnings**: Remove runtime missing model tracking and warnings
-   - **Status Line Display**:
-     - **Show Actual Costs**: Display calculated total cost amount, not "Partial" status
-     - **Include Zero Costs**: Unconfigured models contribute 0 to total, which is accurate
-     - **Focus on Amount**: Users see actual dollar amount being spent
 
 ### Phase 3: Status Line Provider Implementation
 
@@ -1307,10 +1329,11 @@ cost = (input_tokens * input_price_per_million / 1,000,000) +
 **Comprehensive Error Handling with Clear Specifications:**
 
 **Startup Validation Strategy:**
+- **Consolidated Validation**: All configuration validation happens during Phase 1 initialization
 - **Router Model Extraction**: Extract all models from Router configuration during initialization
 - **Pricing Validation**: Check which router-used models have pricing configured
-- **Mandatory User Prompt**: If any router-used models lack pricing, display warning and require user confirmation
-- **Block Startup**: Router will not start until user explicitly confirms acceptance of missing pricing
+- **Mandatory User Prompt**: If any critical issues exist (invalid format, negative pricing, missing pricing), display warning and require user confirmation
+- **Block Startup**: Router startup waits for user input on critical configuration issues
 
 **Runtime Validation Strategy:**
 - **Silent Zero Cost**: For unconfigured models, return cost of 0 without logging warnings
@@ -1319,20 +1342,21 @@ cost = (input_tokens * input_price_per_million / 1,000,000) +
 - **Status Line Display**: Show actual calculated costs, not "Partial" status indicators
 
 **User Experience Design for Configuration Issues:**
-- **Proactive Awareness**: Users know about missing pricing before using the router
-- **Mandatory Confirmation**: Ensures users explicitly accept partial tracking
+- **Proactive Awareness**: Users know about configuration issues before using the router
+- **Mandatory Confirmation**: Ensures users explicitly accept configuration issues
 - **Clean Status Line**: Shows actual costs without confusing status messages
 - **Accurate Tracking**: Reflects true spending (0 for unconfigured models is correct)
 
 **Implementation Specifications:**
 
-**Startup Validation Implementation:**
+**Consolidated Validation Implementation:**
 ```typescript
-// In src/config/costConfig.ts
+// In src/config/costConfig.ts - consolidated validation approach
 class CostConfigValidator {
-  static validateCostConfig(config: CostTrackingConfig): ValidationResult {
+  static validateCostConfig(config: CostTrackingConfig, routerConfig: any): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
+    const missingPricing: string[] = [];
 
     // Validate pricing values
     if (config.model_pricing) {
@@ -1357,16 +1381,53 @@ class CostConfigValidator {
       warnings.push(`Unsupported default currency "${config.default_currency}", using USD`);
     }
 
-    return { errors, warnings };
+    // Check for missing pricing on router-used models
+    if (config.enabled && routerConfig) {
+      const routerModels = this.extractRouterModels(routerConfig);
+      missingPricing.push(...this.findMissingPricing(routerModels, config.model_pricing || {}));
+    }
+
+    return { errors, warnings, missingPricing };
   }
 
-  static isValidModelFormat(model: string): boolean {
-    return /^[^,]+,[^,]+$/.test(model);
-  }
+  static async promptUserForConfirmation(validation: ValidationResult): Promise<boolean> {
+    if (validation.errors.length > 0 || validation.missingPricing.length > 0) {
+      console.warn('\n=== Cost Tracking Configuration Issues ===');
 
-  static isValidCurrency(currency: string): boolean {
-    const validCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'CNY'];
-    return validCurrencies.includes(currency.toUpperCase());
+      if (validation.errors.length > 0) {
+        console.error('Configuration errors:');
+        validation.errors.forEach(error => console.error(`  - ${error}`));
+      }
+
+      if (validation.missingPricing.length > 0) {
+        console.warn(`Missing pricing for ${validation.missingPricing.length} router models:`);
+        validation.missingPricing.forEach(model => {
+          console.warn(`  - ${model}: Cost will be 0`);
+        });
+      }
+
+      console.warn('\nPress Enter to continue with cost tracking disabled, or Ctrl+C to exit and fix configuration...');
+
+      try {
+        const readline = require('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
+        return new Promise((resolve) => {
+          rl.question('', () => {
+            rl.close();
+            resolve(false); // Disable cost tracking
+          });
+        });
+      } catch (error) {
+        console.error('Error reading user input, disabling cost tracking');
+        return false;
+      }
+    }
+
+    return true; // No issues, enable cost tracking
   }
 }
 ```
@@ -1579,34 +1640,35 @@ interface CostModuleConfig {
 
 ## Revision Notes
 
-### 2025-11-11: Improved Configuration Validation Approach
+### 2025-11-11: Consolidated Configuration Validation with User Prompting
 
 **Key Changes:**
 
-1. **Startup Configuration Validation**
-   - Added router model extraction from Router configuration (default, background, think, longContext, webSearch)
-   - Implemented mandatory user prompting for missing pricing
-   - Router startup blocks until user explicitly confirms acceptance of missing pricing
+1. **Consolidated Validation Architecture**
+   - **Moved all validation to Phase 1**: Configuration validation now happens during initial config loading
+   - **Integrated user prompting**: Critical configuration issues now require user confirmation during startup
+   - **Single validation approach**: Combined basic validation and router model validation into one cohesive system
 
-2. **Runtime Behavior Updates**
-   - Removed runtime missing model warnings and tracking
-   - Silent zero cost for unconfigured models (no logging)
-   - Simplified cost calculation logic
+2. **Enhanced User Prompting Logic**
+   - **Critical errors** (invalid model format, negative pricing): User must confirm to continue
+   - **Missing pricing warnings**: User must confirm to continue with partial tracking
+   - **Non-critical warnings** (unsupported currencies): Log only, no user prompt needed
+   - **Blocking behavior**: Router startup waits for user input on critical issues
 
-3. **Status Line Provider Updates**
-   - Removed complex tracking status logic ("Partial", "Active", etc.)
-   - Simplified to always show actual calculated costs
-   - Removed "Partial" status indicators from status line variables
+3. **Runtime Behavior Updates**
+   - **Silent zero cost**: For unconfigured models, return cost of 0 without logging
+   - **Calculate configured models**: Track costs normally for models with pricing
+   - **No runtime warnings**: Remove runtime missing model tracking and warnings
 
-4. **Error Handling Strategy Updates**
-   - Updated to reflect proactive startup validation
-   - Removed runtime validation approach
-   - Focus on mandatory user confirmation for missing pricing
+4. **Status Line Provider Updates**
+   - **Show actual costs**: Display calculated total cost amount, not "Partial" status
+   - **Include zero costs**: Unconfigured models contribute 0 to total, which is accurate
+   - **Focus on amount**: Users see actual dollar amount being spent
 
-**Benefits of Updated Approach:**
-- **Proactive Detection**: Users know about missing pricing before using the router
-- **Mandatory Confirmation**: Ensures users explicitly accept partial tracking
-- **Clean Status Line**: Shows actual costs without confusing status messages
-- **Accurate Tracking**: Reflects true spending (0 for unconfigured models is correct)
+**Benefits of Consolidated Approach:**
+- **Early detection**: Configuration issues caught during router startup
+- **User awareness**: Users must explicitly accept configuration issues before proceeding
+- **Clean separation**: Validation logic consolidated in Phase 1 where it belongs
+- **Graceful degradation**: Router continues with cost tracking disabled if user chooses
 
 
