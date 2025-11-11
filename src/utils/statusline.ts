@@ -3,6 +3,15 @@ import { execSync } from "child_process";
 import path from "node:path";
 import { CONFIG_FILE, HOME_DIR } from "../constants";
 import JSON5 from "json5";
+import { CostStatusLineProvider } from "./costStatusLineProvider";
+
+// Global cost provider instance
+let costStatusLineProvider: CostStatusLineProvider | null = null;
+
+// Function to register cost provider (called during router initialization)
+export function registerCostStatusLineProvider(provider: CostStatusLineProvider): void {
+  costStatusLineProvider = provider;
+}
 
 export interface StatusLineModuleConfig {
   type: string;
@@ -532,6 +541,12 @@ export async function parseStatusLineData(input: StatusLineInput): Promise<strin
       inputTokens: formattedInputTokens,
       outputTokens: formattedOutputTokens
     };
+
+    // Add cost variables if cost tracking is available
+    if (costStatusLineProvider) {
+      const costVariables = costStatusLineProvider.getCostVariables(input.session_id);
+      Object.assign(variables, costVariables);
+    }
     
     // 确定使用的风格
     const isPowerline = currentStyle === 'powerline';

@@ -23,6 +23,8 @@ import { IAgent } from "./agents/type";
 import agentsManager from "./agents";
 import { EventEmitter } from "node:events";
 import { CostCalculator } from "./utils/costCalculator";
+import { CostStatusLineProvider } from "./utils/costStatusLineProvider";
+import { registerCostStatusLineProvider } from "./utils/statusline";
 
 const event = new EventEmitter()
 
@@ -70,6 +72,11 @@ async function run(options: RunOptions = {}) {
     try {
       costCalculator = new CostCalculator(config.CostTracking);
       console.log("✅ Cost tracking enabled and initialized successfully.");
+
+      // Register cost status line provider for status line integration
+      const costStatusLineProvider = new CostStatusLineProvider(costCalculator, config.CostTracking);
+      registerCostStatusLineProvider(costStatusLineProvider);
+      console.log("✅ Cost status line provider registered successfully.");
     } catch (error) {
       console.error("❌ Failed to initialize cost calculator:", error);
       console.warn("⚠️  Cost tracking will be disabled for this session.");
