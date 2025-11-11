@@ -1478,6 +1478,114 @@ interface CostModuleConfig {
   - **Error Handling**: Comprehensive disabled state and error condition handling with color-coded status indicators
   - **Template Substitution**: Extended variable substitution to support nested model-specific cost variables
 
+5. Configuration Integration Details **RESOLVED**
+- **Issue**: The master plan mentions extending the configuration schema but lacks specific details about how the CostTracking configuration section integrates with the existing configuration loading system, where configuration validation should be hooked, and how the configuration is passed to the CostCalculator service during initialization.
+- **Analysis**: The plan includes configuration validation code but doesn't specify:
+  - How the CostTracking section integrates with the existing configuration loading system in `src/utils/index.ts`
+  - Where exactly the configuration validation should be hooked into the existing config loading process
+  - How the validated configuration is passed to the CostCalculator service during router initialization
+  - The specific integration points for configuration hot reloading if supported
+- **Resolution**: Added comprehensive configuration integration specifications with production-ready code:
+  - **Configuration Loading Integration**: Extended existing config loading in `src/utils/index.ts` to include cost tracking configuration validation and initialization
+  - **Validation Hook Integration**: Added `validateAndInitializeCostConfig` function call during router initialization to validate and process cost configuration
+  - **Service Initialization**: Added CostCalculator service initialization with validated configuration during router startup
+  - **Error Handling Integration**: Integrated configuration validation errors with existing router error handling patterns
+  - **Graceful Degradation**: Ensured router continues operating normally even with invalid cost configuration
+
+**Implementation Details:**
+
+**1. Configuration Loading Integration:**
+```typescript
+// In src/utils/index.ts - extend existing config loading
+import { validateAndInitializeCostConfig } from './config/costConfig';
+
+export function loadConfig(): RouterConfig {
+  // ... existing config loading logic ...
+
+  // Validate and initialize cost tracking configuration
+  const costTrackingConfig = validateAndInitializeCostConfig(config);
+
+  return {
+    ...config,
+    CostTracking: costTrackingConfig
+  };
+}
+```
+
+**2. Router Initialization Integration:**
+```typescript
+// In src/index.ts - during router initialization
+import { loadConfig } from './utils';
+import { CostCalculator } from './utils/costCalculator';
+import { CostStatusLineProvider } from './utils/costStatusLineProvider';
+
+// Load configuration with cost tracking
+const config = loadConfig();
+const costTrackingConfig = config.CostTracking;
+
+// Initialize cost calculator if enabled
+let costCalculator: CostCalculator | null = null;
+if (costTrackingConfig.enabled) {
+  costCalculator = new CostCalculator(costTrackingConfig);
+
+  // Register status line provider
+  const costStatusLineProvider = new CostStatusLineProvider(costCalculator);
+  registerCostStatusLineProvider(costStatusLineProvider);
+}
+```
+
+**3. Configuration Schema Integration:**
+```typescript
+// In src/config/schema.ts - extend existing schema
+interface RouterConfig {
+  // ... existing configuration fields ...
+  CostTracking?: CostTrackingConfig;
+}
+
+interface CostTrackingConfig {
+  enabled?: boolean;
+  default_currency?: string;
+  model_pricing?: Record<string, ModelPricing>;
+}
+
+interface ModelPricing {
+  input_tokens_per_million: number;
+  output_tokens_per_million: number;
+  currency?: string;
+}
+```
+
+**4. Error Handling Integration:**
+```typescript
+// In src/utils/index.ts - integrate with existing error handling
+export function loadConfig(): RouterConfig {
+  try {
+    // ... existing config loading ...
+    const costTrackingConfig = validateAndInitializeCostConfig(config);
+
+    return {
+      ...config,
+      CostTracking: costTrackingConfig
+    };
+  } catch (error) {
+    // Log error but don't fail - router should continue with default configuration
+    console.error('Error loading cost tracking configuration:', error);
+
+    // Return config with cost tracking disabled
+    return {
+      ...config,
+      CostTracking: {
+        enabled: false,
+        default_currency: 'USD',
+        model_pricing: {}
+      }
+    };
+  }
+}
+```
+
+This implementation ensures seamless integration with the existing configuration system while providing comprehensive cost tracking configuration support.
+
 **Implementation Details:**
 
 **1. Cost Status Line Provider Registration:**
