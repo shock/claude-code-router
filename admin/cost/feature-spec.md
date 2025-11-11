@@ -9,7 +9,7 @@ This feature enables real-time cost tracking for Claude Code Router sessions by 
 1. **Per-Model Cost Tracking**: Track input and output token costs separately for each model
 2. **Session Accumulation**: Maintain running totals for the current session
 3. **Status Line Integration**: Add a new "cost" module to display total session cost
-4. **Configurable Pricing**: Allow users to define model-specific pricing in configuration
+4. **Configurable Pricing**: Allow users to define model-specific pricing in configuration using `<provider>,<model>` format
 
 ## Architecture
 
@@ -28,26 +28,126 @@ Provider API   input/output   model pricing   per-model totals   total cost
    - Maintains session-level cost accumulation
    - Provides cost data to status line and other consumers
 
-2. **Configuration Schema**
-   - Extends existing model configuration with optional pricing
-   - Supports per-model input/output pricing
+2. **Configuration System**
+   - Local configuration only (no remote configuration support)
+   - Supports per-model input/output pricing using `<provider>,<model>` format
 
 3. **Status Line Module**
    - New "cost" module type
    - Displays total session cost
    - Configurable formatting and display options
 
-## Configuration Changes
+## Configuration
 
-### Extended Model Configuration
+### Cost Tracking Configuration
 
-Add optional pricing fields to model definitions in `config.json`:
+Add cost tracking configuration to `config.json`:
 
 ```json
 {
   "CostTracking": {
     "enabled": true,
-    "currency": "USD",
+    "default_currency": "USD",
+    "model_pricing": {
+      "openai,gpt-4.1": {
+        "input_tokens_per_million": 2.50,
+        "output_tokens_per_million": 10.00
+      },
+      "openrouter,deepseek-chat": {
+        "input_tokens_per_million": 0.15,
+        "output_tokens_per_million": 0.60
+      },
+      "anthropic,claude-3-5-sonnet": {
+        "input_tokens_per_million": 3.00,
+        "output_tokens_per_million": 15.00
+      },
+      "google,gemini-2.5-flash": {
+        "input_tokens_per_million": 0.10,
+        "output_tokens_per_million": 0.40
+      }
+    }
+  }
+}
+```
+
+### Configuration Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable/disable cost tracking globally |
+| `default_currency` | string | `"USD"` | Default currency for cost display |
+| `model_pricing` | object | `{}` | Model pricing definitions using `<provider>,<model>` format |
+
+### Pricing Object Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `input_tokens_per_million` | number | Yes | Cost per million input tokens |
+| `output_tokens_per_million` | number | Yes | Cost per million output tokens |
+| `currency` | string | No | Currency code (defaults to `default_currency`) |
+
+### Status Line Configuration
+
+Add cost module to status line configuration:
+
+```json
+{
+  "StatusLine": {
+    "default": {
+      "modules": [
+        {
+          "type": "cost",
+          "icon": "💵",
+          "text": "{{totalCost}}",
+          "color": "bright_green",
+          "format": "currency",
+          "precision": 2,
+          "show_breakdown": false
+        }
+      ]
+    }
+  }
+}
+```
+
+### Cost Module Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `type` | string | - | Must be `"cost"` |
+| `icon` | string | `"💵"` | Display icon |
+| `text` | string | `"{{totalCost}}"` | Text template with variables |
+| `color` | string | `"bright_green"` | Text color |
+| `format` | string | `"currency"` | Display format (`"currency"`, `"decimal"`, `"scientific"`, `"compact"`) |
+| `precision` | number | `2` | Decimal precision for display |
+| `show_breakdown` | boolean | `false` | Show per-model breakdown (if space allows) |
+
+### Available Status Line Variables
+
+#### Cost Variables
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{totalCost}}` | Total session cost (formatted) | `"$0.12"` |
+| `{{totalCostRaw}}` | Total session cost (raw number) | `"0.1234"` |
+| `{{sessionDuration}}` | Session duration | `"15m"` |
+| `{{modelCosts}}` | JSON string of per-model costs | `{"openai,gpt-4.1": 0.08, "openrouter,deepseek-chat": 0.04}` |
+| `{{topModel}}` | Most expensive model used | `"openai,gpt-4.1"` |
+| `{{topModelCost}}` | Cost of most expensive model | `"$0.08"` |
+
+#### Model-Specific Variables
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{cost.openai,gpt-4.1}}` | Cost for specific model | `"$0.08"` |
+| `{{cost.openrouter,deepseek-chat}}` | Cost for specific model | `"$0.04"` |
+
+### Example Configurations
+
+#### Basic Configuration
+```json
+{
+  "CostTracking": {
+    "enabled": true,
+    "default_currency": "USD",
     "model_pricing": {
       "openai,gpt-4.1": {
         "input_tokens_per_million": 2.50,
@@ -57,6 +157,72 @@ Add optional pricing fields to model definitions in `config.json`:
         "input_tokens_per_million": 0.15,
         "output_tokens_per_million": 0.60
       }
+    }
+  },
+  "StatusLine": {
+    "default": {
+      "modules": [
+        {
+          "type": "cost",
+          "icon": "💵",
+          "text": "{{totalCost}}",
+          "color": "bright_green"
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Advanced Configuration
+```json
+{
+  "CostTracking": {
+    "enabled": true,
+    "default_currency": "USD",
+    "model_pricing": {
+      "openai,gpt-4.1": {
+        "input_tokens_per_million": 2.50,
+        "output_tokens_per_million": 10.00
+      },
+      "openrouter,deepseek-chat": {
+        "input_tokens_per_million": 0.15,
+        "output_tokens_per_million": 0.60
+      },
+      "anthropic,claude-3-5-sonnet": {
+        "input_tokens_per_million": 3.00,
+        "output_tokens_per_million": 15.00
+      },
+      "google,gemini-2.5-flash": {
+        "input_tokens_per_million": 0.10,
+        "output_tokens_per_million": 0.40
+      }
+    }
+  },
+  "StatusLine": {
+    "default": {
+      "modules": [
+        {
+          "type": "cost",
+          "icon": "💰",
+          "text": "{{totalCost}} ({{topModel}})",
+          "color": "bright_yellow",
+          "format": "compact",
+          "precision": 3,
+          "show_breakdown": true
+        }
+      ]
+    },
+    "powerline": {
+      "modules": [
+        {
+          "type": "cost",
+          "icon": "💵",
+          "text": "{{totalCost}}",
+          "color": "white",
+          "background": "bg_bright_green"
+        }
+      ]
     }
   }
 }
@@ -138,25 +304,7 @@ interface SessionCostData {
 - **scientific**: "1.23e-1"
 - **compact**: "$0.12" (auto-format based on magnitude)
 
-## API Changes
-
-### New Endpoints (Optional)
-
-```typescript
-// Get current session cost summary
-GET /api/cost/session
-Response: {
-  totalCost: number;
-  currency: string;
-  modelCosts: Record<string, ModelCost>;
-  sessionStart: string;
-}
-
-// Get cost history (if persistent storage implemented)
-GET /api/cost/history?days=7
-```
-
-### Internal APIs
+## Internal APIs
 
 ```typescript
 // Cost calculation service
@@ -192,27 +340,35 @@ interface CostStatusLineProvider {
 - [ ] Cost alerts/thresholds
 - [ ] Export cost data
 
-## Configuration Migration
+## Configuration Validation
+
+### Required Validation Rules
+
+1. **Pricing Values**: Must be positive numbers
+2. **Currency Codes**: Must be valid ISO 4217 currency codes
+3. **Model Names**: Must match actual model names used in routing with `<provider>,<model>` format
+4. **Module Configuration**: Cost module requires cost tracking to be enabled
 
 ### Backward Compatibility
-- All pricing fields are optional
-- If pricing not configured, cost tracking is disabled for that model
-- Status line cost module gracefully handles missing pricing data
+- All cost configuration fields are optional
+- If CostTracking not pressent in config, cost tracking is disabled
 
-### Default Behavior
-- When pricing is missing: cost module shows "N/A" or hides itself
-- Users can enable/disable cost tracking globally
+### Startup Validation
+- CostTracking fields are validated on startup, if present
+- If CostTracking is present but disabled, cost tracking is disabled
+- If CostTracking is present and enabled, and all models have valid pricing, cost tracking is enabled and should not cause any exceptions
+- If Cost Tracking is enabled and any configured models are missing cost data, print warning on startup listing unconfigured models and require user to press ENTER to continue.  S model cost to 0 for any missing models
+
+### Runtime Behavior
+- If Cost Tracking is disabled (default), status line cost module should show "Disabled"
+- If an error/exception occurs during cost calculation, log the error to logs and show "Error" in cost status line module (for all variables)
+- When CostTracking is disabled, status line cost module shows "Disabled" for all variables
 
 ## Error Handling
 
-### Missing Pricing Data
-- Log warning when model used without pricing configuration
-- Skip cost calculation for that model
-- Continue tracking tokens for potential later cost calculation
-
 ### Configuration Errors
 - Validate pricing configuration on startup
-- Provide clear error messages for invalid pricing
+- Provide clear error messages for invalid pricing configuration and require user to press ENTER to continue
 - Fallback to disabled state for problematic configurations
 
 ## Testing Strategy
@@ -224,20 +380,13 @@ interface CostStatusLineProvider {
 - Status line variable formatting
 
 ### Integration Tests
-- End-to-end cost tracking with real API responses
-- Status line display with cost module
+- End-to-end cost tracking with stubbed API responses
+- Validate status line variables in cost module for various scenarios
 - Session persistence and reset behavior
 
-### Performance Testing
-- Impact on response times with cost calculation
-- Memory usage with session cost storage
-- Cache efficiency for frequent cost lookups
+## Best Practices
 
-## Security Considerations
-
-- Cost data should not be persisted beyond session lifetime
-- No sensitive pricing information in logs
-- Cost calculations should not expose API keys or provider details
+1. **Use Provider,Model Format**: Always use the `<provider>,<model>` format in model_pricing to match router configuration
 
 ## Future Enhancements
 
@@ -245,7 +394,7 @@ interface CostStatusLineProvider {
 2. **Budget Alerts**: Notify users when approaching cost limits
 3. **Cost Analytics**: Provide insights into cost patterns
 4. **Multi-Currency Support**: Automatic currency conversion
-5. **Provider-Specific Pricing**: Auto-fetch pricing from provider APIs
+5. **Cost Import/Export**: Allow users to export cost data for analysis
 
 ## Dependencies
 
