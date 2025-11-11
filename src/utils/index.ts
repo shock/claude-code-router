@@ -9,6 +9,8 @@ import {
   PLUGINS_DIR,
 } from "../constants";
 import { cleanupLogFiles } from "./logCleanup";
+import { CostTrackingConfig } from "../types/cost";
+import { CostConfigValidator } from "../config/costConfig";
 
 // Function to interpolate environment variables in config values
 const interpolateEnvVars = (obj: any): any => {
@@ -167,11 +169,68 @@ export const writeConfigFile = async (config: any) => {
   await fs.writeFile(CONFIG_FILE, configWithComment);
 };
 
-export const initConfig = async () => {
+export interface RouterConfig {
+  Providers: any[];
+  Router: any;
+  CostTracking?: CostTrackingConfig;
+  [key: string]: any;
+}
+
+export const initConfig = async (): Promise<RouterConfig> => {
   const config = await readConfigFile();
   Object.assign(process.env, config);
-  return config;
+
+  // Validate and initialize cost tracking configuration
+  const costTrackingConfig = await validateAndInitializeCostConfig(config);
+
+  return {
+    ...config,
+    CostTracking: costTrackingConfig
+  };
 };
+
+/**
+ * Validates and initializes cost tracking configuration with graceful error handling
+ * @param config The router configuration
+ * @returns Validated and initialized cost tracking configuration
+ */
+async function validateAndInitializeCostConfig(config: any): Promise<CostTrackingConfig> {
+  try {
+    // Get cost tracking configuration from config or use defaults
+    const costConfig = config.CostTracking || {};
+    const mergedConfig = CostConfigValidator.mergeWithDefaults(costConfig);
+
+    // If cost tracking is disabled, return the disabled configuration
+    if (!mergedConfig.enabled) {
+      return mergedConfig;
+    }
+
+    // Validate cost configuration against router configuration
+    const validationResult = CostConfigValidator.validateCostConfig(mergedConfig, config);
+
+    // User confirmation options - default to continuing with warnings
+    const userConfirmationOptions = {
+      continueWithErrors: true,
+      continueWithMissingPricing: true,
+      useDefaultCurrency: true
+    };
+
+    // Validate and initialize with user confirmation
+    const validatedConfig = await CostConfigValidator.validateAndInitializeCostConfig(
+      mergedConfig,
+      config,
+      userConfirmationOptions
+    );
+
+    return validatedConfig;
+  } catch (error) {
+    // Log error but don't fail - router should continue with default configuration
+    console.error('Error loading cost tracking configuration:', error);
+
+    // Return default disabled configuration
+    return CostConfigValidator.getDefaultConfig();
+  }
+}
 
 // 导出日志清理函数
 export { cleanupLogFiles };

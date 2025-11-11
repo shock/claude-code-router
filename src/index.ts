@@ -22,6 +22,7 @@ import JSON5 from "json5";
 import { IAgent } from "./agents/type";
 import agentsManager from "./agents";
 import { EventEmitter } from "node:events";
+import { CostCalculator } from "./utils/costCalculator";
 
 const event = new EventEmitter()
 
@@ -62,6 +63,20 @@ async function run(options: RunOptions = {}) {
   // Clean up old log files, keeping only the 10 most recent ones
   await cleanupLogFiles();
   const config = await initConfig();
+
+  // Initialize cost calculator if enabled
+  let costCalculator: CostCalculator | null = null;
+  if (config.CostTracking?.enabled) {
+    try {
+      costCalculator = new CostCalculator(config.CostTracking);
+      console.log("✅ Cost tracking enabled and initialized successfully.");
+    } catch (error) {
+      console.error("❌ Failed to initialize cost calculator:", error);
+      console.warn("⚠️  Cost tracking will be disabled for this session.");
+    }
+  } else {
+    console.log("ℹ️  Cost tracking is disabled.");
+  }
 
 
   let HOST = config.HOST || "127.0.0.1";
@@ -190,7 +205,8 @@ async function run(options: RunOptions = {}) {
       }
       await router(req, reply, {
         config,
-        event
+        event,
+        costCalculator
       });
     }
   });

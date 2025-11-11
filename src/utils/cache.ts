@@ -5,7 +5,7 @@ export interface Usage {
   output_tokens: number;
 }
 
-class LRUCache<K, V> {
+export class LRUCache<K, V> {
   private capacity: number;
   private cache: Map<K, V>;
 
