@@ -357,7 +357,7 @@ interface CostStatusLineProvider {
 - CostTracking fields are validated on startup, if present
 - If CostTracking is present but disabled, cost tracking is disabled
 - If CostTracking is present and enabled, and all models have valid pricing, cost tracking is enabled and should not cause any exceptions
-- If Cost Tracking is enabled and any configured models are missing cost data, print warning on startup listing unconfigured models and require user to press ENTER to continue.  S model cost to 0 for any missing models
+- If Cost Tracking is enabled and any configured models used by the Router are missing cost data, print warning on startup listing those models, then require user to press ENTER to continue.  Set model cost to 0 for those.
 
 ### Runtime Behavior
 - If Cost Tracking is disabled (default), status line cost module should show "Disabled"
