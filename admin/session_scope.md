@@ -154,32 +154,48 @@ interface StatusLineInput {
 
 ## Implications for Cost Tracking
 
-### Current Limitations
-1. **No Clear Session Boundaries**: Without explicit start/end events, cost tracking must rely on implicit session management
-2. **Cache-Based Persistence**: Cost data will persist in LRU cache alongside token usage data
-3. **No Session Reset**: The planned `sessionReset` event would need to be implemented to properly reset costs
-4. **Claude Code Controlled**: Session lifecycle is ultimately controlled by Claude Code, not the router
+### Simplified Approach
+**Session events are unnecessary** for cost tracking. The existing token usage tracking pattern provides everything needed:
 
-### Required Enhancements
-For effective cost tracking, the following session management enhancements are needed:
+1. **Session ID as Primary Key**: Use `req.sessionId` to lookup/create cost data
+2. **Same Cache Pattern**: Follow existing `sessionUsageCache` approach
+3. **Automatic Lifecycle**: LRU cache handles session cleanup automatically
 
-1. **Session Reset Events**: Implement explicit session reset triggers
-2. **Session Start Detection**: Add logic to detect new sessions
-3. **Session End Detection**: Add logic to detect session termination
-4. **Session Boundary Management**: Clear session boundaries for cost accumulation
+### Implementation Strategy
+Cost tracking can follow the exact same pattern as token usage tracking:
+
+```typescript
+// Current token tracking pattern (already working)
+const lastMessageUsage = sessionUsageCache.get(req.sessionId);
+sessionUsageCache.put(req.sessionId, payload.usage);
+
+// Cost tracking can use identical pattern
+const sessionCost = costCache.get(req.sessionId);
+if (!sessionCost) {
+  // Create new cost tracking object
+  costCache.put(req.sessionId, new SessionCostData(req.sessionId));
+}
+// Update cost calculations
+```
+
+### Benefits
+- **No complex event system** needed
+- **Proven pattern** already working for token tracking
+- **Automatic cleanup** via LRU cache eviction
+- **Consistent architecture** with existing codebase
 
 ## Recommendations
 
-### Short-term (Cost Tracking Implementation)
-- Use existing LRU cache patterns for cost storage
-- Implement session reset logic based on planned `sessionReset` events
-- Track costs using the same session ID keys as token usage
+### Cost Tracking Implementation
+- **Use existing LRU cache patterns** for cost storage
+- **Follow token usage tracking approach** - session ID as primary key
+- **No session events needed** - existing pattern handles lifecycle
+- **Automatic initialization** when session ID first appears
 
-### Long-term (Session Management Enhancement)
-- Add explicit session start/end events
-- Implement session lifecycle management
-- Add session boundary detection
-- Provide session duration tracking
+### Session Management Status
+- **Current approach is sufficient** for cost tracking
+- **No enhancements needed** - existing pattern works well
+- **Keep it simple** - avoid over-engineering session management
 
 ## Technical Notes
 
