@@ -1,0 +1,26 @@
+{
+  "providers": {
+    "anthropic": {
+      "apiKey": "test-anthropic-key",
+      "models": {
+        "claude-3-5-sonnet": {
+          "inputCostPerToken": 0.000003,
+          "outputCostPerToken": 0.000015
+        }
+      }
+    },
+    "openai": {
+      "apiKey": "test-openai-key",
+      "models": {
+        "gpt-4o": {
+          "inputCostPerToken": 0.000005,
+          "outputCostPerToken": 0.000015
+        }
+      }
+    }
+  },
+  "routing": {
+    "default": "anthropic/claude-3-5-sonnet",
+    "background": "openai/gpt-4o"
+  }
+}

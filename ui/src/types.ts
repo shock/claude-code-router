@@ -49,12 +49,25 @@ export interface StatusLineConfig {
   fontFamily?: string;
 }
 
+export interface ModelPricing {
+  input_tokens_per_million: number;
+  output_tokens_per_million: number;
+  currency?: string;
+}
+
+export interface CostTrackingConfig {
+  enabled?: boolean;
+  default_currency?: string;
+  model_pricing?: Record<string, ModelPricing>;
+}
+
 export interface Config {
   Providers: Provider[];
   Router: RouterConfig;
   transformers: Transformer[];
   StatusLine?: StatusLineConfig;
   forceUseImageAgent?: boolean;
+  CostTracking?: CostTrackingConfig;
   // Top-level settings
   LOG: boolean;
   LOG_LEVEL: string;

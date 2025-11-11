@@ -2,11 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**IMPORTANT**: This project uses `pnpm` as the package manager.  Use `pnpm` instead of `npm` or `yarn`.
+
 ## Commands
 
 -   **Build the project**:
     ```bash
-    npm run build
+    pnpm run build
     ```
 -   **Start the router server**:
     ```bash
@@ -24,9 +26,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     ```bash
     ccr code "<your prompt>"
     ```
+-   **Run tests**:
+    ```bash
+    pnpm test
+    ```
+-   **Run tests with coverage**:
+    ```bash
+    pnpm run test:coverage
+    ```
 -   **Release a new version**:
     ```bash
-    npm run release
+    pnpm run release
     ```
 
 ## Architecture
@@ -42,3 +52,5 @@ This project is a TypeScript-based router for Claude Code requests. It allows ro
 -   **Dependencies**: The project is built with `esbuild`. It has a key local dependency `@musistudio/llms`, which probably contains the core logic for interacting with different LLM APIs.
 -   `@musistudio/llms` is implemented based on `fastify` and exposes `fastify`'s hook and middleware interfaces, allowing direct use of `server.addHook`.
 - 无论如何你都不能自动提交git
+
+**IMPORTANT**: This project uses `pnpm` as the package manager.
