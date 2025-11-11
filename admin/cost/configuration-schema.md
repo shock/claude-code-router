@@ -6,44 +6,7 @@ This document defines the configuration schema for the session cost tracking fea
 
 ## Extended Provider Configuration
 
-### Model-Level Pricing (Recommended)
-
-Extend the existing model definitions to include optional pricing information:
-
-```json
-{
-  "Providers": [
-    {
-      "name": "openai",
-      "api_base_url": "https://api.openai.com/v1/chat/completions",
-      "api_key": "sk-...",
-      "models": [
-        {
-          "name": "gpt-4.1",
-          "pricing": {
-            "input_tokens_per_million": 2.50,
-            "output_tokens_per_million": 10.00,
-            "currency": "USD"
-          }
-        },
-        {
-          "name": "gpt-4.1-mini",
-          "pricing": {
-            "input_tokens_per_million": 0.15,
-            "output_tokens_per_million": 0.60,
-            "currency": "USD"
-          }
-        }
-      ],
-      "transformer": {
-        "use": ["openai"]
-      }
-    }
-  ]
-}
-```
-
-### Global Pricing Configuration (Alternative)
+### Global Pricing Configuration
 
 For simpler setup, define pricing globally:
 
@@ -95,30 +58,6 @@ For simpler setup, define pricing globally:
 }
 ```
 
-### Provider-Level Configuration
-
-```json
-{
-  "Providers": [
-    {
-      "name": "string",
-      "api_base_url": "string",
-      "api_key": "string",
-      "models": [
-        {
-          "name": "string",
-          "pricing": {
-            "input_tokens_per_million": number,
-            "output_tokens_per_million": number,
-            "currency": "string"
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
 ## Configuration Properties
 
 ### CostTracking Object
@@ -127,7 +66,6 @@ For simpler setup, define pricing globally:
 |----------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable/disable cost tracking globally |
 | `default_currency` | string | `"USD"` | Default currency for cost display |
-| `session_persistence` | string | `"memory"` | How to persist session costs (`"memory"`, `"file"`, `"none"`) |
 | `model_pricing` | object | `{}` | Global model pricing definitions |
 
 ### Pricing Object
