@@ -21,6 +21,63 @@ export const createServer = (config: any): Server => {
     return await readConfigFile();
   });
 
+  // Add endpoint to get cost provider status
+  server.app.get("/api/cost-status", async (req, reply) => {
+    const { isCostProviderRegistered } = await import("./utils/statusline");
+    const config = await readConfigFile();
+
+    return {
+      costTrackingEnabled: config?.CostTracking?.enabled || false,
+      costProviderRegistered: isCostProviderRegistered(),
+      currency: config?.CostTracking?.currency || 'USD',
+      modelsConfigured: Object.keys(config?.CostTracking?.models || {}).length
+    };
+  });
+
+  // Add endpoint to get cost variables for a specific session
+  server.app.get("/api/cost-variables/:sessionId", async (req, reply) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const { isCostProviderRegistered, getCostStatusLineProvider } = await import("./utils/statusline");
+    const config = await readConfigFile();
+
+    // Check if cost tracking is enabled and provider is registered
+    if (!config?.CostTracking?.enabled || !isCostProviderRegistered()) {
+      return {
+        costTrackingEnabled: false,
+        costProviderRegistered: false,
+        variables: {}
+      };
+    }
+
+    try {
+      // Get the cost status line provider
+      const costProvider = getCostStatusLineProvider();
+      if (!costProvider) {
+        return {
+          costTrackingEnabled: true,
+          costProviderRegistered: false,
+          variables: {}
+        };
+      }
+
+      // Get all cost variables for the session
+      const variables = costProvider.getCostVariables(sessionId);
+
+      return {
+        costTrackingEnabled: true,
+        costProviderRegistered: true,
+        currency: config.CostTracking.currency || 'USD',
+        variables
+      };
+    } catch (error) {
+      console.error("Failed to get cost variables:", error);
+      reply.status(500).send({
+        error: "Failed to get cost variables",
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   server.app.get("/api/transformers", async () => {
     const transformers =
       server.app._server!.transformerService.getAllTransformers();

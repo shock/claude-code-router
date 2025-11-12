@@ -80,6 +80,18 @@ async function run(options: RunOptions = {}) {
     } catch (error) {
       console.error("❌ Failed to initialize cost calculator:", error);
       console.warn("⚠️  Cost tracking will be disabled for this session.");
+
+      // Write error to file for debugging since background process hides console output
+      const fs = require('fs');
+      const path = require('path');
+      const errorLog = {
+        timestamp: new Date().toISOString(),
+        error: error?.message || error,
+        stack: error?.stack,
+        config: config.CostTracking
+      };
+      const errorLogPath = path.join(process.env.HOME || '', '.claude-code-router', 'cost-tracking-error.log');
+      fs.writeFileSync(errorLogPath, JSON.stringify(errorLog, null, 2));
     }
   } else {
     console.log("ℹ️  Cost tracking is disabled.");

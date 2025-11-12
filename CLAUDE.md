@@ -18,14 +18,19 @@ Claude Code Router is a powerful tool that routes Claude Code requests to differ
 - **Release:** `pnpm run release` - Builds and publishes to pnpm
 
 ### CLI Commands
-- **Start server:** `ccr start` - Starts the routing server
-- **Stop server:** `ccr stop` - Stops the running server
-- **Restart server:** `ccr restart` - Restarts the server
-- **Check status:** `ccr status` - Shows server status
-- **Run Claude Code:** `ccr code "command"` - Executes Claude Code commands through the router
-- **Model management:** `ccr model` - Interactive model selection and configuration
-- **Open UI:** `ccr ui` - Opens the web-based configuration UI
-- **Status line:** `ccr statusline` - Integrated status line functionality
+
+**NOTE**: Always build the project before using the CLI
+
+- **Start server:** `dist/cli.js start` - Starts the routing server in the foreground
+- **Start server:** `dist/cli.js start --background` - Starts the routing server in the background
+- **Stop server:** `dist/cli.js stop` - Stops the running server
+- **Restart server:** `dist/cli.js restart` - Restarts the server in the foreground
+- **Restart server:** `dist/cli.js restart --background` - Restarts the server in the background
+- **Check status:** `dist/cli.js status` - Shows server status
+- **Run Claude Code:** `dist/cli.js code "command"` - Executes Claude Code commands through the router
+- **Model management:** `dist/cli.js model` - Interactive model selection and configuration
+- **Open UI:** `dist/cli.js ui` - Opens the web-based configuration UI
+- **Status line:** `dist/cli.js statusline` - Integrated status line functionality
 
 ## Architecture
 
