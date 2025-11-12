@@ -223,10 +223,10 @@ async function validateAndInitializeCostConfig(config: any): Promise<CostTrackin
     // Validate cost configuration against router configuration
     const validationResult = CostConfigValidator.validateCostConfig(mergedConfig, config);
 
-    // User confirmation options - default to continuing with warnings
+    // User confirmation option defaults
     const userConfirmationOptions = {
-      continueWithErrors: true,
-      continueWithMissingPricing: true,
+      continueWithErrors: false,
+      continueWithMissingPricing: false,
       useDefaultCurrency: true
     };
 
