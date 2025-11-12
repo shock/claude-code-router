@@ -13,13 +13,24 @@ export function registerCostStatusLineProvider(provider: CostStatusLineProvider)
   costStatusLineProvider = provider;
 }
 
+// Status line module types
+export type StatusLineModuleType = "workDir" | "gitBranch" | "model" | "usage" | "script" | "cost";
+
 export interface StatusLineModuleConfig {
-  type: string;
+  type: StatusLineModuleType;
   icon?: string;
   text: string;
   color?: string;
   background?: string;
   scriptPath?: string; // 用于script类型的模块，指定要执行的Node.js脚本文件路径
+}
+
+// Cost-specific module configuration
+export interface CostModule extends StatusLineModuleConfig {
+  type: "cost";
+  show_breakdown?: boolean;
+  precision?: number;
+  format?: "currency" | "decimal" | "scientific" | "compact";
 }
 
 export interface StatusLineThemeConfig {
@@ -317,6 +328,117 @@ function formatUsage(input_tokens: number, output_tokens: number): string {
   return `${input_tokens} ${output_tokens}`;
 }
 
+// 格式化成本值，支持不同的格式选项
+function formatCostValue(
+  value: string,
+  format: "currency" | "decimal" | "scientific" | "compact" = "currency",
+  precision: number = 2
+): string {
+  // 如果值不是数字，直接返回
+  const numericValue = parseFloat(value);
+  if (isNaN(numericValue)) {
+    return value;
+  }
+
+  switch (format) {
+    case "currency":
+      // 货币格式 - 使用Intl.NumberFormat
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: numericValue < 0.01 ? Math.min(precision, 6) : precision,
+        maximumFractionDigits: numericValue < 0.01 ? Math.min(precision, 6) : precision
+      }).format(numericValue);
+
+    case "decimal":
+      // 十进制格式
+      return numericValue.toFixed(precision);
+
+    case "scientific":
+      // 科学计数法格式
+      return numericValue.toExponential(precision);
+
+    case "compact":
+      // 紧凑格式 - 使用K/M/B等单位
+      if (numericValue >= 1e9) {
+        return `${(numericValue / 1e9).toFixed(precision)}B`;
+      } else if (numericValue >= 1e6) {
+        return `${(numericValue / 1e6).toFixed(precision)}M`;
+      } else if (numericValue >= 1e3) {
+        return `${(numericValue / 1e3).toFixed(precision)}K`;
+      } else {
+        return numericValue.toFixed(precision);
+      }
+
+    default:
+      return value;
+  }
+}
+
+// 处理成本模块的文本渲染
+function renderCostModuleText(
+  module: CostModule,
+  variables: Record<string, string>
+): string {
+  const {
+    text,
+    show_breakdown = false,
+    precision = 2,
+    format = "currency"
+  } = module;
+
+  // 检查成本跟踪状态
+  const trackingStatus = variables.trackingStatus || 'Unknown';
+  const statusMessage = variables.statusMessage || '';
+
+  // 如果成本跟踪被禁用，显示状态信息
+  if (trackingStatus === 'Disabled') {
+    return statusMessage || 'Cost tracking disabled';
+  }
+
+  // 如果没有成本数据，显示无数据信息
+  if (!variables.totalCost && !variables.totalCostRaw) {
+    return statusMessage || 'No cost data';
+  }
+
+  // 处理显示详细成本分解
+  if (show_breakdown) {
+    const totalCost = variables.totalCostRaw || variables.totalCost;
+    const topModel = variables.topModel || '';
+    const topModelCost = variables.topModelCost || '';
+
+    if (topModel && topModel !== 'None') {
+      const formattedTotalCost = formatCostValue(totalCost, format, precision);
+      const formattedTopModelCost = formatCostValue(topModelCost, format, precision);
+      return `${formattedTotalCost} (${topModel}: ${formattedTopModelCost})`;
+    }
+  }
+
+  // 默认情况：使用模板文本并进行变量替换
+  let result = replaceVariables(text, variables);
+
+  // 对成本相关的变量应用格式化
+  const costVariables = ['totalCost', 'totalCostRaw', 'topModelCost'];
+  for (const varName of costVariables) {
+    if (variables[varName] && result.includes(variables[varName])) {
+      const formattedValue = formatCostValue(variables[varName], format, precision);
+      result = result.replace(variables[varName], formattedValue);
+    }
+  }
+
+  // 处理动态模型成本变量
+  const modelCostRegex = /\{\{cost\.(\w+)\}\}/g;
+  result = result.replace(modelCostRegex, (match, modelVar) => {
+    const fullVarName = `cost.${modelVar}`;
+    if (variables[fullVarName]) {
+      return formatCostValue(variables[fullVarName], format, precision);
+    }
+    return match;
+  });
+
+  return result;
+}
+
 // 读取用户主目录的主题配置
 async function getProjectThemeConfig(): Promise<{ theme: StatusLineThemeConfig | null, style: string }> {
   try {
@@ -432,6 +554,14 @@ function canDisplayUnicodeCharacter(char: string): boolean {
   // 默认情况下，假设可以显示
   return true;
 }
+
+// Export internal functions for testing
+export {
+  formatCostValue,
+  renderCostModuleText,
+  renderDefaultStyle,
+  renderPowerlineStyle
+};
 
 export async function parseStatusLineData(input: StatusLineInput): Promise<string> {
   try {
@@ -598,41 +728,44 @@ async function renderDefaultStyle(
 ): Promise<string> {
   const modules = theme.modules || DEFAULT_THEME.modules;
   const parts: string[] = [];
-  
+
   // 遍历模块数组，渲染每个模块
   for (let i = 0; i < Math.min(modules.length, 5); i++) {
     const module = modules[i];
     const color = module.color ? getColorCode(module.color) : "";
     const background = module.background ? getColorCode(module.background) : "";
     const icon = module.icon || "";
-    
-    // 如果是script类型，执行脚本获取文本
+
+    // 根据模块类型获取文本
     let text = "";
     if (module.type === "script" && module.scriptPath) {
       text = await executeScript(module.scriptPath, variables);
+    } else if (module.type === "cost") {
+      // 处理成本模块
+      text = renderCostModuleText(module as CostModule, variables);
     } else {
       text = replaceVariables(module.text, variables);
     }
-    
+
     // 构建显示文本
     let displayText = "";
     if (icon) {
       displayText += `${icon} `;
     }
     displayText += text;
-    
+
     // 如果displayText为空，或者只有图标没有实际文本，则跳过该模块
     if (!displayText || !text) {
       continue;
     }
-    
+
     // 构建模块字符串
     let part = `${background}${color}`;
     part += `${displayText}${COLORS.reset}`;
-    
+
     parts.push(part);
   }
-  
+
   // 使用空格连接所有部分
   return parts.join(" ");
 }
@@ -781,48 +914,51 @@ async function renderPowerlineStyle(
 ): Promise<string> {
   const modules = theme.modules || POWERLINE_THEME.modules;
   const segments: string[] = [];
-  
+
   // 遍历模块数组，渲染每个模块
   for (let i = 0; i < Math.min(modules.length, 5); i++) {
     const module = modules[i];
     const color = module.color || "white";
     const backgroundName = module.background || "";
     const icon = module.icon || "";
-    
-    // 如果是script类型，执行脚本获取文本
+
+    // 根据模块类型获取文本
     let text = "";
     if (module.type === "script" && module.scriptPath) {
       text = await executeScript(module.scriptPath, variables);
+    } else if (module.type === "cost") {
+      // 处理成本模块
+      text = renderCostModuleText(module as CostModule, variables);
     } else {
       text = replaceVariables(module.text, variables);
     }
-    
+
     // 构建显示文本
     let displayText = "";
     if (icon) {
       displayText += `${icon} `;
     }
     displayText += text;
-    
+
     // 如果displayText为空，或者只有图标没有实际文本，则跳过该模块
     if (!displayText || !text) {
       continue;
     }
-    
+
     // 获取下一个模块的背景色（用于分隔符）
     let nextBackground: string | null = null;
     if (i < modules.length - 1) {
       const nextModule = modules[i + 1];
       nextBackground = nextModule.background || null;
     }
-    
+
     // 使用模块定义的背景色，或者为Powerline风格提供默认背景色
     const actualBackground = backgroundName || "bg_bright_blue";
-    
+
     // 生成段，支持十六进制颜色
     const segmentStr = segment(displayText, color, actualBackground, nextBackground);
     segments.push(segmentStr);
   }
-  
+
   return segments.join("");
 }

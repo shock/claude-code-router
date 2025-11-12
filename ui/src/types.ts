@@ -28,13 +28,24 @@ export interface Transformer {
     options?: Record<string, any>;
 }
 
+// Status line module types
+export type StatusLineModuleType = "workDir" | "gitBranch" | "model" | "usage" | "script" | "cost";
+
 export interface StatusLineModuleConfig {
-  type: string;
+  type: StatusLineModuleType;
   icon?: string;
   text: string;
   color?: string;
   background?: string;
   scriptPath?: string; // 用于script类型的模块，指定要执行的Node.js脚本文件路径
+}
+
+// Cost-specific module configuration
+export interface CostModule extends StatusLineModuleConfig {
+  type: "cost";
+  show_breakdown?: boolean;
+  precision?: number;
+  format?: "currency" | "decimal" | "scientific" | "compact";
 }
 
 export interface StatusLineThemeConfig {
