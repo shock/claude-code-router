@@ -38,7 +38,8 @@ Claude Code Router is a powerful tool that routes Claude Code requests to differ
 - `utils/router.ts` - Request routing logic and model selection
 
 **Configuration System**
-- Configuration is stored in `~/.claude-code-router/config.json`
+- Configuration is stored in `~/.claude-code-router/config.json` by default
+- Can be overridden with `CCR_CFG_FILE` environment variable
 - Supports environment variable interpolation for API keys
 - Dynamic model routing based on request context
 
@@ -112,6 +113,14 @@ Claude Code Router is a powerful tool that routes Claude Code requests to differ
 
 See `ui/config.example.json` for comprehensive configuration examples including:
 
+### Environment Variables
+
+- **`CCR_CFG_FILE`**: Override the default configuration file location
+  ```shell
+  export CCR_CFG_FILE="/path/to/your/custom/config.json"
+  ```
+  If the specified file doesn't exist, falls back to default location with warning
+
 ### Provider Configuration
 - Multiple provider setups (OpenRouter, DeepSeek, Ollama, Gemini, SiliconFlow, etc.)
 - API endpoints and authentication keys
@@ -134,6 +143,7 @@ See `ui/config.example.json` for comprehensive configuration examples including:
 ### Advanced Features
 - Custom transformers via plugin system
 - Environment variable interpolation
+- Configuration file location override via `CCR_CFG_FILE`
 - Non-interactive mode for CI/CD
 - Logging configuration
 

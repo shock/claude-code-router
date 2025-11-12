@@ -63,7 +63,36 @@ async function main() {
   const isRunning = await isServiceRunning()
   switch (command) {
     case "start":
-      run();
+      if (isRunning) {
+        console.log("✅ Service is already running in the background.");
+        break;
+      }
+
+      // Check if we're already in background mode (to prevent infinite loop)
+      if (process.env.CCR_BACKGROUND_MODE === "true") {
+        // We're in background mode, actually run the server
+        run();
+      } else {
+        // We're in CLI mode, spawn background process
+        console.log("Starting claude code router service...");
+        const cliPath = join(__dirname, "cli.js");
+        const startProcess = spawn("node", [cliPath, "start"], {
+          detached: true,
+          stdio: "ignore",
+          env: {
+            ...process.env,
+            CCR_BACKGROUND_MODE: "true"
+          }
+        });
+
+        startProcess.on("error", (error) => {
+          console.error("Failed to start service:", error);
+          process.exit(1);
+        });
+
+        startProcess.unref();
+        console.log("✅ Service started successfully in the background.");
+      }
       break;
     case "stop":
       try {

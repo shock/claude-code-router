@@ -69,21 +69,36 @@ const confirm = async (query: string): Promise<boolean> => {
 };
 
 export const readConfigFile = async () => {
+  const defaultConfigPath = path.join(HOME_DIR, "config.json");
+  const configPath = CONFIG_FILE;
+
   try {
-    const config = await fs.readFile(CONFIG_FILE, "utf-8");
+    const config = await fs.readFile(configPath, "utf-8");
     try {
       // Try to parse with JSON5 first (which also supports standard JSON)
       const parsedConfig = JSON5.parse(config);
       // Interpolate environment variables in the parsed config
       return interpolateEnvVars(parsedConfig);
     } catch (parseError) {
-      console.error(`Failed to parse config file at ${CONFIG_FILE}`);
+      console.error(`Failed to parse config file at ${configPath}`);
       console.error("Error details:", (parseError as Error).message);
       console.error("Please check your config file syntax.");
       process.exit(1);
     }
   } catch (readError: any) {
     if (readError.code === "ENOENT") {
+      // If CCR_CFG_FILE is set but file doesn't exist, fall back to default location
+      if (process.env.CCR_CFG_FILE && configPath !== defaultConfigPath) {
+        console.warn(`Config file not found at CCR_CFG_FILE=${configPath}, falling back to default location: ${defaultConfigPath}`);
+        // Try to read from default location directly without recursion
+        try {
+          const defaultConfig = await fs.readFile(defaultConfigPath, "utf-8");
+          const parsedConfig = JSON5.parse(defaultConfig);
+          return interpolateEnvVars(parsedConfig);
+        } catch {
+          // If default location also fails, continue with normal setup flow
+        }
+      }
       // Config file doesn't exist, prompt user for initial setup
       try {
         // Initialize directories
@@ -104,7 +119,7 @@ export const readConfigFile = async () => {
         // Create a minimal default config file
         await writeConfigFile(config);
         console.log(
-            "Created minimal default configuration file at ~/.claude-code-router/config.json"
+            `Created minimal default configuration file at ${configPath}`
         );
         console.log(
             "Please edit this file with your actual configuration."
@@ -118,7 +133,7 @@ export const readConfigFile = async () => {
         process.exit(1);
       }
     } else {
-      console.error(`Failed to read config file at ${CONFIG_FILE}`);
+      console.error(`Failed to read config file at ${configPath}`);
       console.error("Error details:", readError.message);
       process.exit(1);
     }
