@@ -101,6 +101,46 @@ Claude Code Router is a powerful tool that routes Claude Code requests to differ
 - Automated Claude Code execution in workflows
 - Environment variable configuration
 
+## Testing Patterns
+
+### Integration Testing for Environment Variable Overrides
+
+When testing environment variable overrides (like `CCR_CFG_FILE`), use the integration test pattern demonstrated in `tests/config/configFileOverride.test.ts`:
+
+**Key Pattern Elements:**
+- Use real file system operations (not mocked) for file creation
+- Create temporary files with distinctive test values
+- Set environment variables before module imports
+- Clear module cache (`jest.resetModules()`) to ensure fresh evaluation
+- Temporarily unmock file system for integration testing
+- Proper cleanup of temporary files
+
+**Example Usage:**
+```typescript
+// Set environment variable
+process.env.CCR_CFG_FILE = tempConfigPath;
+
+// Clear module cache for fresh import
+jest.resetModules();
+
+// Temporarily unmock fs
+jest.unmock('node:fs/promises');
+
+try {
+  // Import modules (will use new environment variable)
+  const { readConfigFile } = require('../../src/utils');
+
+  // Test actual behavior
+  const config = await readConfigFile();
+
+  // Verify distinctive values
+  expect(config.PORT).toBe(9999);
+} finally {
+  // Remock for other tests
+  jest.mock('node:fs/promises');
+}
+```
+
 ## Important Implementation Details
 
 1. **Process Management**: Uses PID files for service state tracking
