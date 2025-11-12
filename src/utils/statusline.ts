@@ -475,7 +475,7 @@ function renderCostModuleText(
   // TEST: Always return something when cost module is configured
   if (!variables.totalCost && !variables.totalCostRaw) {
     // Return status message or a default message to ensure module appears
-    return statusMessage || '💰 Cost: N/A';
+    return statusMessage || 'Cost: unknown';
   }
 
   // 处理显示详细成本分解

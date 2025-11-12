@@ -553,7 +553,7 @@ describe('End-to-End Status Line Cost Integration', () => {
       expect(result).toContain('🤖 claude-3.5-sonnet');
 
       // Cost module should show no cost data when disabled
-      expect(result).toContain('No cost data');
+      expect(result).toContain('unknown');
     });
 
     test('should not interfere with existing status line functionality when no cost provider', async () => {
