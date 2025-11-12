@@ -1,0 +1,210 @@
+{
+  "LOG": true,
+  "LOG_LEVEL": "debug",
+  "CLAUDE_PATH": "/opt/homebrew/bin/claude",
+  "HOST": "127.0.0.1",
+  "PORT": 8163,
+  "APIKEY": "1",
+  "API_TIMEOUT_MS": "600000",
+  "PROXY_URL": "",
+  "transformers": [],
+  "Providers": [
+    {
+      "name": "openrouter",
+      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
+      "api_key": "your-key",
+      "models": [
+        "@preset/glm-4-6-exacto-z-ai"
+      ],
+      "transformer": {
+        "use": [
+          "openrouter"
+        ]
+      }
+    },
+    {
+      "name": "openai",
+      "api_base_url": "https://api.openai.com/v1/chat/completions",
+      "api_key": "your-key",
+      "models": [
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-5-mini",
+        "gpt-5-nano"
+      ],
+      "transformer": {
+        "use": [
+          "openai"
+        ]
+      }
+    },
+    {
+      "name": "gemini",
+      "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
+      "api_key": "your-key",
+      "models": [
+        "gemini-2.5-flash"
+      ],
+      "transformer": {
+        "use": [
+          "gemini"
+        ]
+      }
+    },
+    {
+      "name": "z.ai",
+      "api_base_url": "https://api.z.ai/api/paas/v4/chat/completions",
+      "api_key": "your-key",
+      "models": [
+        "glm-4.6"
+      ]
+    },
+    {
+      "name": "deepseek",
+      "api_base_url": "https://api.deepseek.com/chat/completions",
+      "api_key": "your-key",
+      "models": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ],
+      "transformer": {
+        "use": [
+          "deepseek"
+        ]
+      }
+    }
+  ],
+  "StatusLine": {
+    "enabled": true,
+    "currentStyle": "default",
+    "default": {
+      "modules": [
+        {
+          "type": "workDir",
+          "icon": "📁",
+          "text": "{{workDirName}}",
+          "color": "bright_blue"
+        },
+        {
+          "type": "gitBranch",
+          "icon": "🌿",
+          "text": "{{gitBranch}}",
+          "color": "bright_magenta"
+        },
+        {
+          "type": "model",
+          "icon": "🧠",
+          "text": "{{model}}",
+          "color": "bright_cyan"
+        },
+        {
+          "type": "usage",
+          "icon": "↑",
+          "text": "{{inputTokens}}",
+          "color": "bright_green"
+        },
+        {
+          "type": "usage",
+          "icon": "↓",
+          "text": "{{outputTokens}}",
+          "color": "bright_yellow"
+        },
+        {
+          "type": "cost",
+          "icon": "💰",
+          "text": "{{totalCost}}",
+          "color": "bright_white"
+        }
+      ]
+    },
+    "powerline": {
+      "modules": [
+        {
+          "type": "workDir",
+          "icon": "📁",
+          "text": "{{workDirName}}",
+          "color": "white",
+          "background": "bg_bright_blue"
+        },
+        {
+          "type": "gitBranch",
+          "icon": "🌿",
+          "text": "{{gitBranch}}",
+          "color": "white",
+          "background": "bg_bright_magenta"
+        },
+        {
+          "type": "model",
+          "icon": "🧠",
+          "text": "{{model}}",
+          "color": "white",
+          "background": "bg_bright_cyan"
+        },
+        {
+          "type": "cost",
+          "icon": "💰",
+          "text": "{{totalCost}}",
+          "color": "white",
+          "background": "bg_bright_green"
+        }
+      ]
+    }
+  },
+  "Router": {
+    "default": "deepseek,deepseek-chat",
+    "background": "deepseek,deepseek-chat",
+    "think": "z.ai,glm-4.6",
+    "longContext": "gemini,gemini-2.5-flash",
+    "longContextThreshold": 100000,
+    "webSearch": "gemini,gemini-2.5-flash",
+    "image": ""
+  },
+  "CUSTOM_ROUTER_PATH": "",
+  "CostTracking": {
+    "enabled": true,
+    "currency": "USD",
+    "models": {
+      "@preset/glm-4-6-exacto-z-ai": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "gpt-4.1": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "gpt-4.1-mini": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "gpt-4.1-nano": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "gpt-5-mini": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "gpt-5-nano": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "gemini-2.5-flash": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "glm-4.6": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "deepseek-chat": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "deepseek-reasoner": {
+        "input": 0.0,
+        "output": 0.0
+      }
+    }
+  }
+}
