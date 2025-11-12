@@ -396,6 +396,25 @@ async function run(options: RunOptions = {}) {
   });
   server.addHook("onSend", async (req, reply, payload) => {
     event.emit('onSend', req, reply, payload);
+
+    // Asynchronous cost calculation - don't await to avoid blocking
+    if (costCalculator && req.sessionId && req.body?.model && payload?.usage) {
+      process.nextTick(() => {
+        try {
+          const { input_tokens, output_tokens } = payload.usage;
+          costCalculator.calculateCost(
+            req.sessionId,
+            req.body.model,
+            input_tokens || 0,
+            output_tokens || 0
+          );
+        } catch (error) {
+          // Log error but don't fail the request
+          console.error('Cost calculation error:', error);
+        }
+      });
+    }
+
     return payload;
   })
 
