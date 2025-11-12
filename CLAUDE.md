@@ -6,13 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Claude Code Router is a powerful tool that routes Claude Code requests to different LLM providers and models. It allows users to use Claude Code without an Anthropic account by routing requests to various model providers like OpenRouter, DeepSeek, Ollama, Gemini, and others.
 
+**IMPORTANT**: This project uses `pnpm` as the package manager.  Use `pnpm` instead of `npm` or `yarn`.  Use `pnpm dlx` instead of `npx`.
+**IMPORTANT**: Use `pnpm dlx` instead of `npx`.
+
 ## Key Commands
 
 ### Development Commands
-- **Build the project:** `npm run build` - Builds both CLI and UI components using esbuild
-- **Run tests:** `npm test` or `npm run test:watch` - Uses Jest with ts-jest preset
-- **Test coverage:** `npm run test:coverage` - Generates coverage reports
-- **Release:** `npm run release` - Builds and publishes to npm
+- **Build the project:** `pnpm run build` - Builds both CLI and UI components using esbuild
+- **Run tests:** `pnpm test` or `pnpm run test:watch` - Uses Jest with ts-jest preset
+- **Test coverage:** `pnpm run test:coverage` - Generates coverage reports
+- **Release:** `pnpm run release` - Builds and publishes to pnpm
 
 ### CLI Commands
 - **Start server:** `ccr start` - Starts the routing server
@@ -134,15 +137,5 @@ See `ui/config.example.json` for comprehensive configuration examples including:
 - Non-interactive mode for CI/CD
 - Logging configuration
 
-Example routing configuration:
-```json
-{
-  "Router": {
-    "default": "gemini-cli,gemini-2.5-pro",
-    "background": "gemini-cli,gemini-2.5-flash",
-    "think": "gemini-cli,gemini-2.5-pro",
-    "longContext": "gemini-cli,gemini-2.5-pro",
-    "webSearch": "gemini-cli,gemini-2.5-flash"
-  }
-}
-```
+**IMPORTANT**: This project uses `pnpm` as the package manager.  Use `pnpm` instead of `npm` or `yarn`.  Use `pnpm dlx` instead of `npx`.
+**IMPORTANT**: Use `pnpm dlx` instead of `npx`.
