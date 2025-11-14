@@ -220,9 +220,6 @@ async function validateAndInitializeCostConfig(config: any): Promise<CostTrackin
       return mergedConfig;
     }
 
-    // Validate cost configuration against router configuration
-    const validationResult = CostConfigValidator.validateCostConfig(mergedConfig, config);
-
     // User confirmation option defaults
     const userConfirmationOptions = {
       continueWithErrors: false,

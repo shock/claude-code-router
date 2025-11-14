@@ -14,11 +14,11 @@ import { CostTrackingConfig } from '../../src/types/cost';
 describe('CostConfigValidator', () => {
   const mockRouterConfig = {
     Router: {
-      default: 'openai,gpt-4',
-      background: 'anthropic,claude-3-haiku',
-      think: 'anthropic,claude-3.5-sonnet',
-      longContext: 'openai,gpt-4',
-      webSearch: 'anthropic,claude-3-haiku'
+      default: 'gpt-4',
+      background: 'claude-3-haiku',
+      think: 'claude-3.5-sonnet',
+      longContext: 'gpt-4',
+      webSearch: 'claude-3-haiku'
     },
     Providers: [
       {
@@ -36,19 +36,19 @@ describe('CostConfigValidator', () => {
     enabled: true,
     default_currency: 'USD',
     model_pricing: {
-      'openai,gpt-4': {
-        input_tokens_per_million: 2.50,
-        output_tokens_per_million: 10.00,
+      'gpt-4': {
+        input_cost_per_million: 2.50,
+        output_cost_per_million: 10.00,
         currency: 'USD'
       },
-      'anthropic,claude-3.5-sonnet': {
-        input_tokens_per_million: 3.00,
-        output_tokens_per_million: 15.00,
+      'claude-3.5-sonnet': {
+        input_cost_per_million: 3.00,
+        output_cost_per_million: 15.00,
         currency: 'USD'
       },
-      'anthropic,claude-3-haiku': {
-        input_tokens_per_million: 0.25,
-        output_tokens_per_million: 1.25,
+      'claude-3-haiku': {
+        input_cost_per_million: 0.25,
+        output_cost_per_million: 1.25,
         currency: 'USD'
       }
     }
@@ -70,9 +70,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'invalid-model-format': {
-            input_tokens_per_million: 1.0,
-            output_tokens_per_million: 2.0
+          '*invalid-model-format': {
+            input_cost_per_million: 1.0,
+            output_cost_per_million: 2.0
           }
         }
       };
@@ -80,7 +80,7 @@ describe('CostConfigValidator', () => {
       const result = CostConfigValidator.validateCostConfig(invalidConfig, mockRouterConfig);
 
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid model format: "invalid-model-format". Expected format: "<provider>,<model>"');
+      expect(result.errors).toContain('Invalid model format: "*invalid-model-format". Model name must be a non-empty string with only alphanumeric characters and @,/-_.');
     });
 
     test('should detect negative pricing', () => {
@@ -88,9 +88,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'openai,gpt-4': {
-            input_tokens_per_million: -1.0,
-            output_tokens_per_million: -2.0
+          'gpt-4': {
+            input_cost_per_million: -1.0,
+            output_cost_per_million: -2.0
           }
         }
       };
@@ -98,8 +98,8 @@ describe('CostConfigValidator', () => {
       const result = CostConfigValidator.validateCostConfig(invalidConfig, mockRouterConfig);
 
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid input pricing for openai,gpt-4: must be positive');
-      expect(result.errors).toContain('Invalid output pricing for openai,gpt-4: must be positive');
+      expect(result.errors).toContain('Invalid input pricing for gpt-4: can\'t be negative');
+      expect(result.errors).toContain('Invalid output pricing for gpt-4: can\'t be negative');
     });
 
     test('should detect unsupported currency', () => {
@@ -107,9 +107,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00,
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00,
             currency: 'XYZ'
           }
         }
@@ -118,26 +118,26 @@ describe('CostConfigValidator', () => {
       const result = CostConfigValidator.validateCostConfig(invalidConfig, mockRouterConfig);
 
       expect(result.isValid).toBe(true); // Currency issues are warnings, not errors
-      expect(result.warnings).toContain('Unsupported currency "XYZ" for openai,gpt-4, using default USD');
+      expect(result.warnings).toContain('Unsupported currency "XYZ" for gpt-4, using default USD');
     });
 
     test('should detect missing pricing for router models', () => {
       const partialConfig: CostTrackingConfig = {
         ...validConfig,
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00
           }
-          // Missing pricing for anthropic,claude-3-haiku and anthropic,claude-3.5-sonnet
+          // Missing pricing for claude-3-haiku and claude-3.5-sonnet
         }
       };
 
       const result = CostConfigValidator.validateCostConfig(partialConfig, mockRouterConfig);
 
       expect(result.isValid).toBe(true); // Missing pricing doesn't make config invalid
-      expect(result.missingPricing).toContain('anthropic,claude-3-haiku');
-      expect(result.missingPricing).toContain('anthropic,claude-3.5-sonnet');
+      expect(result.missingPricing).toContain('claude-3-haiku');
+      expect(result.missingPricing).toContain('claude-3.5-sonnet');
     });
 
     test('should handle disabled cost tracking gracefully', () => {
@@ -156,16 +156,14 @@ describe('CostConfigValidator', () => {
 
   describe('isValidModelFormat', () => {
     test('should validate correct model format', () => {
-      expect(CostConfigValidator.isValidModelFormat('openai,gpt-4')).toBe(true);
-      expect(CostConfigValidator.isValidModelFormat('anthropic,claude-3.5-sonnet')).toBe(true);
-      expect(CostConfigValidator.isValidModelFormat('provider,model-name')).toBe(true);
+      expect(CostConfigValidator.isValidModelFormat('gpt-4')).toBe(true);
+      expect(CostConfigValidator.isValidModelFormat('claude-3.5-sonnet')).toBe(true);
+      expect(CostConfigValidator.isValidModelFormat('model-name')).toBe(true);
     });
 
     test('should reject invalid model format', () => {
-      expect(CostConfigValidator.isValidModelFormat('invalid')).toBe(false);
-      expect(CostConfigValidator.isValidModelFormat('provider,')).toBe(false);
-      expect(CostConfigValidator.isValidModelFormat(',model')).toBe(false);
       expect(CostConfigValidator.isValidModelFormat('')).toBe(false);
+      expect(CostConfigValidator.isValidModelFormat('   ')).toBe(false);
     });
   });
 
@@ -193,11 +191,10 @@ describe('CostConfigValidator', () => {
     test('should extract models from router configuration', () => {
       const models = CostConfigValidator.extractRouterModels(mockRouterConfig);
 
-      expect(models).toContain('openai,gpt-4');
-      expect(models).toContain('anthropic,claude-3-haiku');
-      expect(models).toContain('anthropic,claude-3.5-sonnet');
-      expect(models).toContain('openai,gpt-3.5-turbo');
-      expect(models).toContain('anthropic,claude-3-opus');
+      expect(models).toContain('gpt-4');
+      expect(models).toContain('claude-3-haiku');
+      expect(models).toContain('claude-3.5-sonnet');
+      // Note: Models from Providers section are no longer extracted
     });
 
     test('should handle missing router configuration', () => {
@@ -208,38 +205,38 @@ describe('CostConfigValidator', () => {
     test('should handle partial router configuration', () => {
       const partialConfig = {
         Router: {
-          default: 'openai,gpt-4'
+          default: 'gpt-4'
         }
       };
 
       const models = CostConfigValidator.extractRouterModels(partialConfig);
-      expect(models).toContain('openai,gpt-4');
+      expect(models).toContain('gpt-4');
     });
   });
 
   describe('findMissingPricing', () => {
     test('should find models missing pricing', () => {
-      const routerModels = new Set(['openai,gpt-4', 'anthropic,claude-3.5-sonnet', 'anthropic,claude-3-haiku']);
+      const routerModels = new Set(['gpt-4', 'claude-3.5-sonnet', 'claude-3-haiku']);
       const modelPricing = {
-        'openai,gpt-4': {
-          input_tokens_per_million: 2.50,
-          output_tokens_per_million: 10.00
+        'gpt-4': {
+          input_cost_per_million: 2.50,
+          output_cost_per_million: 10.00
         }
       };
 
       const missing = CostConfigValidator.findMissingPricing(routerModels, modelPricing);
 
-      expect(missing).toContain('anthropic,claude-3.5-sonnet');
-      expect(missing).toContain('anthropic,claude-3-haiku');
-      expect(missing).not.toContain('openai,gpt-4');
+      expect(missing).toContain('claude-3.5-sonnet');
+      expect(missing).toContain('claude-3-haiku');
+      expect(missing).not.toContain('gpt-4');
     });
 
     test('should return empty array when all models have pricing', () => {
-      const routerModels = new Set(['openai,gpt-4']);
+      const routerModels = new Set(['gpt-4']);
       const modelPricing = {
-        'openai,gpt-4': {
-          input_tokens_per_million: 2.50,
-          output_tokens_per_million: 10.00
+        'gpt-4': {
+          input_cost_per_million: 2.50,
+          output_cost_per_million: 10.00
         }
       };
 
@@ -253,9 +250,9 @@ describe('CostConfigValidator', () => {
       const userConfig = {
         enabled: true,
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00
           }
         }
       };
@@ -397,9 +394,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00,
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00,
             currency: 'XYZ'
           }
         }
@@ -417,7 +414,7 @@ describe('CostConfigValidator', () => {
         options
       );
 
-      expect(result.model_pricing['openai,gpt-4'].currency).toBe('USD');
+      expect(result.model_pricing['gpt-4'].currency).toBe('USD');
     });
   });
 
@@ -471,9 +468,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'openai,gpt-4': {
-            input_tokens_per_million: 3.00, // Overwrites the original value
-            output_tokens_per_million: 12.00
+          'gpt-4': {
+            input_cost_per_million: 3.00, // Overwrites the original value
+            output_cost_per_million: 12.00
           }
         }
       };
@@ -489,14 +486,14 @@ describe('CostConfigValidator', () => {
         enabled: true,
         default_currency: 'USD',
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00,
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00,
             currency: 'EUR'
           },
-          'anthropic,claude-3.5-sonnet': {
-            input_tokens_per_million: 3.00,
-            output_tokens_per_million: 15.00,
+          'claude-3.5-sonnet': {
+            input_cost_per_million: 3.00,
+            output_cost_per_million: 15.00,
             currency: 'JPY'
           }
         }
@@ -512,17 +509,17 @@ describe('CostConfigValidator', () => {
         enabled: true,
         default_currency: 'USD',
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: -1.0, // Invalid negative value
-            output_tokens_per_million: -2.0 // Invalid negative value
+          'gpt-4': {
+            input_cost_per_million: -1.0, // Invalid negative value
+            output_cost_per_million: -2.0 // Invalid negative value
           }
         }
       };
 
       const result = CostConfigValidator.validateCostConfig(invalidPricingConfig, mockRouterConfig);
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid input pricing for openai,gpt-4: must be positive');
-      expect(result.errors).toContain('Invalid output pricing for openai,gpt-4: must be positive');
+      expect(result.errors).toContain('Invalid input pricing for gpt-4: can\'t be negative');
+      expect(result.errors).toContain('Invalid output pricing for gpt-4: can\'t be negative');
     });
 
     test('should handle null router configuration', () => {
@@ -540,7 +537,7 @@ describe('CostConfigValidator', () => {
     test('should validate configuration with partial router models', () => {
       const partialRouterConfig = {
         Router: {
-          default: 'openai,gpt-4'
+          default: 'gpt-4'
         },
         Providers: [
           {
@@ -559,26 +556,24 @@ describe('CostConfigValidator', () => {
       const zeroPricingConfig: CostTrackingConfig = {
         ...validConfig,
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: 0,
-            output_tokens_per_million: 0
+          'gpt-4': {
+            input_cost_per_million: 0,
+            output_cost_per_million: 0
           }
         }
       };
 
       const result = CostConfigValidator.validateCostConfig(zeroPricingConfig, mockRouterConfig);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid input pricing for openai,gpt-4: must be positive');
-      expect(result.errors).toContain('Invalid output pricing for openai,gpt-4: must be positive');
+      expect(result.isValid).toBe(true); // Zero values are now allowed
     });
 
     test('should validate configuration with very small pricing values', () => {
       const smallPricingConfig: CostTrackingConfig = {
         ...validConfig,
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: 0.0001,
-            output_tokens_per_million: 0.0005
+          'gpt-4': {
+            input_cost_per_million: 0.0001,
+            output_cost_per_million: 0.0005
           }
         }
       };
@@ -592,9 +587,9 @@ describe('CostConfigValidator', () => {
       const largePricingConfig: CostTrackingConfig = {
         ...validConfig,
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: 1000000,
-            output_tokens_per_million: 5000000
+          'gpt-4': {
+            input_cost_per_million: 1000000,
+            output_cost_per_million: 5000000
           }
         }
       };
@@ -633,12 +628,14 @@ describe('CostConfigValidator', () => {
   describe('model format validation edge cases', () => {
     test('should validate various model formats', () => {
       const validModels = [
-        'provider,model',
-        'openai,gpt-4',
-        'anthropic,claude-3.5-sonnet',
-        'google,gemini-pro',
-        'azure,gpt-35-turbo',
-        'aws,claude-v2'
+        'gpt-4',
+        'claude-3.5-sonnet',
+        'gemini-pro',
+        'gpt-35-turbo',
+        'claude-v2',
+        '@model-name',
+        'model_name',
+        'model.name'
       ];
 
       validModels.forEach(model => {
@@ -649,31 +646,13 @@ describe('CostConfigValidator', () => {
     test('should reject invalid model formats', () => {
       const invalidModels = [
         '',
-        'provider',
-        'provider,',
-        ',model',
-        'provider,model,extra',
-        ' , ',
-        'provider, ',
-        ' ,model'
+        '   ',
+        'model with spaces',
+        'model*invalid'
       ];
 
       invalidModels.forEach(model => {
         expect(CostConfigValidator.isValidModelFormat(model)).toBe(false);
-      });
-    });
-
-    test('should handle model names with special characters', () => {
-      const specialModels = [
-        'provider,model-name',
-        'provider,model_name',
-        'provider,model.name',
-        'provider,model@version',
-        'provider,model+plus'
-      ];
-
-      specialModels.forEach(model => {
-        expect(CostConfigValidator.isValidModelFormat(model)).toBe(true);
       });
     });
   });
@@ -692,8 +671,8 @@ describe('CostConfigValidator', () => {
         enabled: true,
         model_pricing: {
           'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00
           }
         }
       };
@@ -766,7 +745,7 @@ describe('CostConfigValidator', () => {
       const validationResult: ValidationResult = {
         errors: [],
         warnings: [],
-        missingPricing: ['anthropic,claude-3.5-sonnet', 'openai,gpt-4'],
+        missingPricing: ['claude-3.5-sonnet', 'gpt-4'],
         isValid: true
       };
 
@@ -779,8 +758,8 @@ describe('CostConfigValidator', () => {
       const result = await CostConfigValidator.promptUserForConfirmation(validationResult, options);
       expect(result).toBe(false);
       expect(consoleWarnSpy).toHaveBeenCalledWith('\n⚠️  Missing pricing for router-used models:');
-      expect(consoleWarnSpy).toHaveBeenCalledWith('  • anthropic,claude-3.5-sonnet');
-      expect(consoleWarnSpy).toHaveBeenCalledWith('  • openai,gpt-4');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('  • claude-3.5-sonnet');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('  • gpt-4');
     });
 
     test('should allow continuation with errors when configured', async () => {
@@ -948,9 +927,9 @@ describe('CostConfigValidator', () => {
         enabled: true,
         default_currency: 'USD',
         model_pricing: {
-          'openai,gpt-4': {
-            input_tokens_per_million: -1.0,
-            output_tokens_per_million: -2.0
+          'gpt-4': {
+            input_cost_per_million: -1.0,
+            output_cost_per_million: -2.0
           }
         }
       };
@@ -961,14 +940,27 @@ describe('CostConfigValidator', () => {
         useDefaultCurrency: false
       };
 
-      const result = await CostConfigValidator.validateAndInitializeCostConfig(
-        invalidConfig,
-        mockRouterConfig,
-        options
-      );
+      // Mock stdin to provide ENTER input when prompted
+      const stdinMock = jest.spyOn(process.stdin, 'once').mockImplementation((event: string, callback: any) => {
+        if (event === 'data') {
+          // Simulate ENTER key press (empty string)
+          setTimeout(() => callback('\n'), 0);
+        }
+        return process.stdin;
+      });
 
-      expect(result.enabled).toBe(false);
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Cost tracking disabled due to configuration issues.');
+      try {
+        const result = await CostConfigValidator.validateAndInitializeCostConfig(
+          invalidConfig,
+          mockRouterConfig,
+          options
+        );
+
+        expect(result.enabled).toBe(false);
+        expect(consoleWarnSpy).toHaveBeenCalledWith('Cost tracking disabled due to configuration issues.');
+      } finally {
+        stdinMock.mockRestore();
+      }
     });
 
     test('should fix currency issues when useDefaultCurrency is true', async () => {
@@ -976,9 +968,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00,
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00,
             currency: 'INVALID'
           }
         }
@@ -996,7 +988,7 @@ describe('CostConfigValidator', () => {
         options
       );
 
-      expect(result.model_pricing['openai,gpt-4'].currency).toBe('USD');
+      expect(result.model_pricing['gpt-4'].currency).toBe('USD');
     });
 
     test('should preserve original configuration when validation passes', async () => {
@@ -1020,9 +1012,9 @@ describe('CostConfigValidator', () => {
         ...validConfig,
         model_pricing: {
           ...validConfig.model_pricing,
-          'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00,
+          'gpt-4': {
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00,
             currency: 'XYZ' // Invalid currency
           }
         }
@@ -1042,7 +1034,7 @@ describe('CostConfigValidator', () => {
 
       expect(result.enabled).toBe(true); // Should remain enabled with warnings
       // Currency should be fixed to USD even when useDefaultCurrency is false (current implementation behavior)
-      expect(result.model_pricing['openai,gpt-4'].currency).toBe('USD');
+      expect(result.model_pricing['gpt-4'].currency).toBe('USD');
     });
   });
 });

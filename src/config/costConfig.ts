@@ -64,13 +64,13 @@ export class CostConfigValidator {
     if (config.model_pricing) {
       for (const [model, pricing] of Object.entries(config.model_pricing)) {
         if (!this.isValidModelFormat(model)) {
-          errors.push(`Invalid model format: "${model}". Expected format: "<provider>,<model>"`);
+          errors.push(`Invalid model format: "${model}". Model name must be a non-empty string with only alphanumeric characters and @,/-_.`);
         }
-        if (pricing.input_tokens_per_million <= 0) {
-          errors.push(`Invalid input pricing for ${model}: must be positive`);
+        if (pricing.input_cost_per_million < 0) {
+          errors.push(`Invalid input pricing for ${model}: can't be negative`);
         }
-        if (pricing.output_tokens_per_million <= 0) {
-          errors.push(`Invalid output pricing for ${model}: must be positive`);
+        if (pricing.output_cost_per_million < 0) {
+          errors.push(`Invalid output pricing for ${model}: can't be negative`);
         }
         if (pricing.currency && !this.isValidCurrency(pricing.currency)) {
           warnings.push(`Unsupported currency "${pricing.currency}" for ${model}, using default USD`);
@@ -163,6 +163,12 @@ export class CostConfigValidator {
       const userConfirmed = await this.promptUserForConfirmation(validationResult, options);
       if (!userConfirmed) {
         console.warn('Cost tracking disabled due to configuration issues.');
+        // prompt the user to continue or exit
+        console.warn('Press ENTER to continue or CTRL+C to exit...');
+        // wait for user input
+        const response = await new Promise<string>(resolve => {
+          process.stdin.once('data', data => resolve(data.toString().trim().toLowerCase()));
+        })
         return {
           ...config,
           enabled: false
@@ -177,13 +183,12 @@ export class CostConfigValidator {
   }
 
   /**
-   * Checks if model name follows the correct format
+   * Checks if model name is valid (non-empty string)
    * @param model Model name to validate
    * @returns Whether model format is valid
    */
   static isValidModelFormat(model: string): boolean {
-    const parts = model.split(',');
-    return parts.length === 2 && parts[0].trim() !== '' && parts[1].trim() !== '';
+    return typeof model === 'string' && /^[a-zA-Z0-9_.\-@/]+$/.test(model);
   }
 
   /**
@@ -198,7 +203,7 @@ export class CostConfigValidator {
   /**
    * Extracts all models used in router configuration
    * @param routerConfig Router configuration object
-   * @returns Set of model names in format "<provider>,<model>"
+   * @returns Set of model names
    */
   static extractRouterModels(routerConfig: any): Set<string> {
     const models = new Set<string>();
@@ -213,17 +218,21 @@ export class CostConfigValidator {
       if (router.webSearch) models.add(router.webSearch);
     }
 
-    // Extract from Providers section
-    if (Array.isArray(routerConfig.Providers)) {
-      for (const provider of routerConfig.Providers) {
-        if (provider.name && Array.isArray(provider.models)) {
-          for (const model of provider.models) {
-            models.add(`${provider.name},${model}`);
-          }
-        }
-      }
-    }
+    // // Extract from Providers section
+    // if (Array.isArray(routerConfig.Providers)) {
+    //   for (const provider of routerConfig.Providers) {
+    //     if (Array.isArray(provider.models)) {
+    //       for (const model of provider.models) {
+    //         models.add(model);
+    //       }
+    //     }
+    //   }
+    // }
 
+    // console.log(`\nModels used in router:`);
+    // for (const model of models) {
+    //   console.log(`  ${model}`);
+    // }
     return models;
   }
 

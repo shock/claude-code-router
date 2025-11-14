@@ -6,13 +6,12 @@ export interface ValidationResult {
 }
 
 /**
- * Validates the provider,model format
- * @param key The model key in format "provider,model"
+ * Validates the model key format
+ * @param key The model key
  * @returns true if valid format
  */
 export function isValidModelKey(key: string): boolean {
-  const parts = key.split(',');
-  return parts.length === 2 && parts[0].trim() !== '' && parts[1].trim() !== '';
+  return typeof key === 'string' && key.trim() !== '';
 }
 
 /**
@@ -23,12 +22,12 @@ export function isValidModelKey(key: string): boolean {
 export function validateModelPricing(pricing: ModelPricing): ValidationResult {
   const errors: string[] = [];
 
-  if (pricing.input_tokens_per_million <= 0) {
-    errors.push("input_tokens_per_million must be a positive number");
+  if (pricing.input_cost_per_million <= 0) {
+    errors.push("input_cost_per_million must be a positive number");
   }
 
-  if (pricing.output_tokens_per_million <= 0) {
-    errors.push("output_tokens_per_million must be a positive number");
+  if (pricing.output_cost_per_million <= 0) {
+    errors.push("output_cost_per_million must be a positive number");
   }
 
   if (pricing.currency && !/^[A-Z]{3}$/.test(pricing.currency)) {
@@ -59,7 +58,7 @@ export function validateCostTrackingConfig(config: CostTrackingConfig): Validati
     for (const [modelKey, pricing] of Object.entries(config.model_pricing)) {
       // Validate model key format
       if (!isValidModelKey(modelKey)) {
-        errors.push(`Invalid model key format: "${modelKey}". Expected format: "provider,model"`);
+        errors.push(`Invalid model key format: "${modelKey}". Model name must be a non-empty string.`);
       }
 
       // Validate pricing configuration
@@ -106,8 +105,8 @@ export function calculateCost(
     return 0;
   }
 
-  const inputCost = (inputTokens / 1_000_000) * modelPricing.input_tokens_per_million;
-  const outputCost = (outputTokens / 1_000_000) * modelPricing.output_tokens_per_million;
+  const inputCost = (inputTokens / 1_000_000) * modelPricing.input_cost_per_million;
+  const outputCost = (outputTokens / 1_000_000) * modelPricing.output_cost_per_million;
 
   return inputCost + outputCost;
 }

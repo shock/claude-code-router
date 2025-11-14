@@ -14,7 +14,7 @@ import {
 import { CONFIG_FILE } from "./constants";
 import { createStream } from 'rotating-file-stream';
 import { HOME_DIR } from "./constants";
-import { sessionUsageCache } from "./utils/cache";
+import { sessionUsageCache, Usage } from "./utils/cache";
 import {SSEParserTransform} from "./utils/SSEParser.transform";
 import {SSESerializerTransform} from "./utils/SSESerializer.transform";
 import {rewriteStream} from "./utils/rewriteStream";
@@ -72,7 +72,7 @@ async function run(options: RunOptions = {}) {
     try {
       costCalculator = new CostCalculator(config.CostTracking);
       console.log("✅ Cost tracking enabled and initialized successfully.");
-
+      // console.log(`config.CostTracking: ${JSON.stringify(config.CostTracking)}`);
       // Register cost status line provider for status line integration
       const costStatusLineProvider = new CostStatusLineProvider(costCalculator, config.CostTracking);
       registerCostStatusLineProvider(costStatusLineProvider);
@@ -233,7 +233,47 @@ async function run(options: RunOptions = {}) {
     event.emit('onError', request, reply, error);
   })
   server.addHook("onSend", (req, reply, payload, done) => {
+    const updateUsage = (req, payload) => {
+      console.log(`onSend cost hook triggered for URL: ${req.url} - Session ID: ${req.sessionId} - `, payload);
+
+      // Check cache first (streaming responses with accumulated usage)
+      let usage = sessionUsageCache.get(req.sessionId);
+      // Fallback to payload (non-streaming responses)
+      if (usage === undefined && payload?.usage) {
+        usage = payload.usage as Usage;
+      }
+
+      // Asynchronous cost calculation - don't await to avoid blocking
+      if (costCalculator && req.sessionId && req.body?.model && usage) {
+        const { input_tokens, output_tokens } = usage;
+        process.nextTick(() => {
+          try {
+            costCalculator.updateSessionCost(
+              req.sessionId,
+              req.body.model,
+              input_tokens || 0,
+              output_tokens || 0
+            );
+          } catch (error) {
+            // Log error but don't fail the request
+            console.error('Cost calculation error:', error);
+          }
+        });
+      } else {
+        // log specific reason why the logic is skipped
+        let failedReasons = [];
+        if (!costCalculator) failedReasons.push('Cost calculator not initialized');
+        if (!req.sessionId) failedReasons.push('sessionId not found in request');
+        if (!req.body?.model) failedReasons.push('Model not specified in request body');
+        if (!usage) failedReasons.push('Usage data not found in response');
+
+        console.log('Cost calculation skipped for URL:', req.url);
+        console.log('Reasons:', failedReasons.join(', '));
+      };
+    }
+
     if (req.sessionId && req.url.startsWith("/v1/messages") && !req.url.startsWith("/v1/messages/count_tokens")) {
+      sessionUsageCache.delete(req.sessionId);
       if (payload instanceof ReadableStream) {
         if (req.agents) {
           const abortController = new AbortController();
@@ -376,7 +416,13 @@ async function run(options: RunOptions = {}) {
               const str = dataStr.slice(27);
               try {
                 const message = JSON.parse(str);
-                sessionUsageCache.put(req.sessionId, message.usage);
+                const usage = {
+                  input_tokens: (message.usage?.input_tokens || 0),
+                  output_tokens: (message.usage?.output_tokens || 0)
+                };
+                sessionUsageCache.put(req.sessionId, usage);
+                console.log(`Session ${req.sessionId} usage for url ${req.url} updated in stream:`, usage);
+                updateUsage(req, usage);
               } catch {}
             }
           } catch (readError: any) {
@@ -392,7 +438,13 @@ async function run(options: RunOptions = {}) {
         read(clonedStream);
         return done(null, originalStream)
       }
-      sessionUsageCache.put(req.sessionId, payload.usage);
+      const usage = {
+        input_tokens: (payload.usage?.input_tokens || 0),
+        output_tokens: (payload.usage?.output_tokens || 0)
+      }
+      sessionUsageCache.put(req.sessionId, usage);
+      updateUsage(req, usage);
+      console.log(`Session ${req.sessionId} usage for url ${req.url} updated:`, usage);
       if (typeof payload ==='object') {
         if (payload.error) {
           return done(payload.error, null)
@@ -406,29 +458,6 @@ async function run(options: RunOptions = {}) {
     }
     done(null, payload)
   });
-  server.addHook("onSend", async (req, reply, payload) => {
-    event.emit('onSend', req, reply, payload);
-
-    // Asynchronous cost calculation - don't await to avoid blocking
-    if (costCalculator && req.sessionId && req.body?.model && payload?.usage) {
-      process.nextTick(() => {
-        try {
-          const { input_tokens, output_tokens } = payload.usage;
-          costCalculator.calculateCost(
-            req.sessionId,
-            req.body.model,
-            input_tokens || 0,
-            output_tokens || 0
-          );
-        } catch (error) {
-          // Log error but don't fail the request
-          console.error('Cost calculation error:', error);
-        }
-      });
-    }
-
-    return payload;
-  })
 
 
   server.start();

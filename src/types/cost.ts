@@ -10,9 +10,9 @@
  */
 export interface ModelPricing {
   /** Cost per million input tokens */
-  input_tokens_per_million: number;
+  input_cost_per_million: number;
   /** Cost per million output tokens */
-  output_tokens_per_million: number;
+  output_cost_per_million: number;
   /** Currency code (e.g., 'USD', 'EUR'). Defaults to USD if not specified */
   currency?: string;
 }

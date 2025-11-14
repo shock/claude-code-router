@@ -61,8 +61,8 @@ export interface StatusLineConfig {
 }
 
 export interface ModelPricing {
-  input_tokens_per_million: number;
-  output_tokens_per_million: number;
+  input_cost_per_million: number;
+  output_cost_per_million: number;
   currency?: string;
 }
 

@@ -179,37 +179,37 @@
     "enabled": true,
     "default_currency": "USD",
     "model_pricing": {
-      "gemini-cli,gemini-2.5-pro": {
+      "gemini-2.5-pro": {
         "input_tokens_per_million": 2.5,
         "output_tokens_per_million": 10.0,
         "currency": "USD"
       },
-      "gemini-cli,gemini-2.5-flash": {
+      "gemini-2.5-flash": {
         "input_tokens_per_million": 0.075,
         "output_tokens_per_million": 0.3,
         "currency": "USD"
       },
-      "openrouter,anthropic/claude-3.5-sonnet": {
+      "anthropic/claude-3.5-sonnet": {
         "input_tokens_per_million": 3.0,
         "output_tokens_per_million": 15.0,
         "currency": "USD"
       },
-      "openrouter,anthropic/claude-3.7-sonnet:thinking": {
+      "anthropic/claude-3.7-sonnet:thinking": {
         "input_tokens_per_million": 5.0,
         "output_tokens_per_million": 25.0,
         "currency": "USD"
       },
-      "openrouter,google/gemini-2.5-pro-preview": {
+      "google/gemini-2.5-pro-preview": {
         "input_tokens_per_million": 2.5,
         "output_tokens_per_million": 10.0,
         "currency": "USD"
       },
-      "deepseek,deepseek-chat": {
+      "deepseek-chat": {
         "input_tokens_per_million": 0.14,
         "output_tokens_per_million": 0.28,
         "currency": "USD"
       },
-      "kimi,kimi-k2-0711-preview": {
+      "kimi-k2-0711-preview": {
         "input_tokens_per_million": 0.6,
         "output_tokens_per_million": 2.4,
         "currency": "CNY"

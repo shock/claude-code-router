@@ -25,16 +25,16 @@ describe('CostStatusLineProvider', () => {
     default_currency: 'USD',
     model_pricing: {
       'openai,gpt-4': {
-        input_tokens_per_million: 2.50,
-        output_tokens_per_million: 10.00
+        input_cost_per_million: 2.50,
+        output_cost_per_million: 10.00
       },
       'anthropic,claude-3.5-sonnet': {
-        input_tokens_per_million: 3.00,
-        output_tokens_per_million: 15.00
+        input_cost_per_million: 3.00,
+        output_cost_per_million: 15.00
       },
       'google,gemini-pro': {
-        input_tokens_per_million: 1.50,
-        output_tokens_per_million: 6.00
+        input_cost_per_million: 1.50,
+        output_cost_per_million: 6.00
       }
     }
   };

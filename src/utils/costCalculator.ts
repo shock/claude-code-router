@@ -6,7 +6,7 @@
  */
 
 import { LRUCache } from './cache';
-import { CostTrackingConfig, SessionCostData, ModelCostBreakdown } from '../types/cost';
+import { CostTrackingConfig, SessionCostData } from '../types/cost';
 
 /**
  * Cost Calculator service for tracking and calculating LLM API costs
@@ -14,7 +14,6 @@ import { CostTrackingConfig, SessionCostData, ModelCostBreakdown } from '../type
 export class CostCalculator {
   private config: CostTrackingConfig;
   private costCache: LRUCache<string, SessionCostData>;
-  private calculationCache: Map<string, number>;
 
   /**
    * Creates a new CostCalculator instance
@@ -24,14 +23,12 @@ export class CostCalculator {
     this.config = config;
     // Use same capacity as sessionUsageCache for consistency (100 entries)
     this.costCache = new LRUCache<string, SessionCostData>(100);
-    // Cache for cost calculations to avoid redundant computations
-    this.calculationCache = new Map<string, number>();
   }
 
   /**
    * Calculates the cost for a given token usage
    * @param sessionId Unique session identifier
-   * @param model Model name in format "<provider>,<model>"
+   * @param model Model name
    * @param inputTokens Number of input tokens used
    * @param outputTokens Number of output tokens used
    * @returns Calculated cost in the configured currency
@@ -41,54 +38,31 @@ export class CostCalculator {
     model: string,
     inputTokens: number,
     outputTokens: number
-  ): number {
+  ): void {
     const pricing = this.config.model_pricing[model];
     if (!pricing) {
-      // Return 0 cost for unconfigured models (no runtime warnings)
-      return 0;
+      // console.warn(`No pricing information found for model: ${model}`);
+      return;
     }
 
-    // Check calculation cache first
-    const cacheKey = `${sessionId}:${model}:${inputTokens}:${outputTokens}`;
-    const cachedCost = this.calculationCache.get(cacheKey);
-    if (cachedCost !== undefined) {
-      return cachedCost;
-    }
-
-    const inputCost = (inputTokens * pricing.input_tokens_per_million) / 1000000;
-    const outputCost = (outputTokens * pricing.output_tokens_per_million) / 1000000;
-    const totalCost = inputCost + outputCost;
-
-    // Cache the calculation
-    this.calculationCache.set(cacheKey, totalCost);
-
-    // Limit calculation cache size to prevent memory leaks
-    if (this.calculationCache.size > 1000) {
-      const firstKey = this.calculationCache.keys().next().value;
-      if (firstKey) {
-        this.calculationCache.delete(firstKey);
-      }
-    }
-
-    this.updateSessionCost(sessionId, model, inputTokens, outputTokens, totalCost);
-    return totalCost;
+    this.updateSessionCost(sessionId, model, inputTokens, outputTokens);
   }
 
   /**
    * Updates session cost data with new token usage
    * @param sessionId Unique session identifier
-   * @param model Model name in format "<provider>,<model>"
+   * @param model Model name
    * @param inputTokens Number of input tokens used
    * @param outputTokens Number of output tokens used
    * @param cost Calculated cost for this usage
    */
-  private updateSessionCost(
+  updateSessionCost(
     sessionId: string,
     model: string,
     inputTokens: number,
     outputTokens: number,
-    cost: number
   ): void {
+    // console.log(`Updating cost for session ${sessionId}, model ${model}: ${inputTokens} input tokens, ${outputTokens} output tokens.`);
     // Get existing session cost or create new one
     let sessionCost = this.costCache.get(sessionId);
     if (!sessionCost) {
@@ -119,16 +93,24 @@ export class CostCalculator {
     // Recalculate model costs to ensure accuracy
     const pricing = this.config.model_pricing[model];
     if (pricing) {
-      modelCost.inputCost = (modelCost.inputTokens * pricing.input_tokens_per_million) / 1000000;
-      modelCost.outputCost = (modelCost.outputTokens * pricing.output_tokens_per_million) / 1000000;
-      modelCost.totalCost = modelCost.inputCost + modelCost.outputCost;
+      const inputCost = (inputTokens * pricing.input_cost_per_million) / 1000000;
+      // console.log(modelCost.inputTokens, pricing.input_cost_per_million);
+      // console.log(`Calculated input cost for model ${model} : $${inputCost.toFixed(6)}`);
+      const outputCost = (outputTokens * pricing.output_cost_per_million) / 1000000;
+      // console.log(`Calculated output cost for model ${model} : $${outputCost.toFixed(6)}`);
+      const totalCost = inputCost + outputCost;
+      modelCost.inputCost += inputCost;
+      modelCost.outputCost += outputCost;
+      // console.log(`Calculated cost for model ${model} in session ${sessionId}: $${totalCost.toFixed(6)} added to $${modelCost.totalCost.toFixed(6)} total.`);
+      modelCost.totalCost += totalCost;
+      // Update total session cost
+      sessionCost.totalCost += totalCost;
+      // Store in cache using same session ID as sessionUsageCache
+      this.costCache.put(sessionId, sessionCost);
+    } else {
+      console.warn(`Configuration missing for model: ${model}.  Cost not updated.`);
+      console.warn(this.config.model_pricing);
     }
-
-    // Update total session cost
-    sessionCost.totalCost += cost;
-
-    // Store in cache using same session ID as sessionUsageCache
-    this.costCache.put(sessionId, sessionCost);
   }
 
   /**
@@ -152,13 +134,6 @@ export class CostCalculator {
       modelCosts: {},
       currency: this.config.default_currency || 'USD'
     });
-  }
-
-  /**
-   * Clears the calculation cache to free memory
-   */
-  clearCalculationCache(): void {
-    this.calculationCache.clear();
   }
 
   /**

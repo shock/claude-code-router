@@ -41,20 +41,20 @@ describe('End-to-End Status Line Cost Integration', () => {
     default_currency: 'USD',
     model_pricing: {
       'openai,gpt-4': {
-        input_tokens_per_million: 2.50,
-        output_tokens_per_million: 10.00
+        input_cost_per_million: 2.50,
+        output_cost_per_million: 10.00
       },
       'anthropic,claude-3.5-sonnet': {
-        input_tokens_per_million: 3.00,
-        output_tokens_per_million: 15.00
+        input_cost_per_million: 3.00,
+        output_cost_per_million: 15.00
       },
       'google,gemini-pro': {
-        input_tokens_per_million: 1.50,
-        output_tokens_per_million: 6.00
+        input_cost_per_million: 1.50,
+        output_cost_per_million: 6.00
       },
       'deepseek,deepseek-chat': {
-        input_tokens_per_million: 0.14,
-        output_tokens_per_million: 0.28
+        input_cost_per_million: 0.14,
+        output_cost_per_million: 0.28
       }
     }
   };
@@ -469,8 +469,8 @@ describe('End-to-End Status Line Cost Integration', () => {
         model_pricing: {
           // Only configure some models
           'openai,gpt-4': {
-            input_tokens_per_million: 2.50,
-            output_tokens_per_million: 10.00
+            input_cost_per_million: 2.50,
+            output_cost_per_million: 10.00
           }
         }
       };

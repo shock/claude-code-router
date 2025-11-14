@@ -39,6 +39,10 @@ export class LRUCache<K, V> {
     this.cache.set(key, value);
   }
 
+  delete(key: K): void {
+    this.cache.delete(key);
+  }
+
   values(): V[] {
     return Array.from(this.cache.values());
   }

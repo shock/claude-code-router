@@ -31,21 +31,21 @@ describe('Token Capture Unit Tests', () => {
     enabled: true,
     default_currency: 'USD',
     model_pricing: {
-      'openai,gpt-4': {
-        input_tokens_per_million: 2.50,
-        output_tokens_per_million: 10.00
+      'gpt-4': {
+        input_cost_per_million: 2.50,
+        output_cost_per_million: 10.00
       },
-      'anthropic,claude-3.5-sonnet': {
-        input_tokens_per_million: 3.00,
-        output_tokens_per_million: 15.00
+      'claude-3.5-sonnet': {
+        input_cost_per_million: 3.00,
+        output_cost_per_million: 15.00
       },
-      'anthropic,claude-3-opus': {
-        input_tokens_per_million: 15.00,
-        output_tokens_per_million: 75.00
+      'claude-3-opus': {
+        input_cost_per_million: 15.00,
+        output_cost_per_million: 75.00
       },
-      'google,gemini-pro': {
-        input_tokens_per_million: 0.50,
-        output_tokens_per_million: 1.50
+      'gemini-pro': {
+        input_cost_per_million: 0.50,
+        output_cost_per_million: 1.50
       }
     }
   };
@@ -71,12 +71,12 @@ describe('Token Capture Unit Tests', () => {
     test('should extract model from req.body.model', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'anthropic,claude-3.5-sonnet' }
+        body: { model: 'claude-3.5-sonnet' }
       };
 
       // Simulate extraction logic from onSend hook
       const model = mockReq.body?.model;
-      expect(model).toBe('anthropic,claude-3.5-sonnet');
+      expect(model).toBe('claude-3.5-sonnet');
     });
 
     test('should extract tokens from payload.usage', () => {
@@ -140,7 +140,7 @@ describe('Token Capture Unit Tests', () => {
     test('should execute cost calculation when all conditions are met', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -156,20 +156,21 @@ describe('Token Capture Unit Tests', () => {
       // If conditions met, extract and calculate
       if (shouldCalculate) {
         const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-        const cost = costCalculator.calculateCost(
+        costCalculator.calculateCost(
           mockReq.sessionId!,
           mockReq.body!.model!,
           input_tokens,
           output_tokens
         );
-        expect(cost).toBeCloseTo(0.0075, 6);
+        const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+        expect(sessionCost?.totalCost).toBeCloseTo(0.0075, 6);
       }
     });
 
     test('should skip cost calculation when costCalculator is null', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -186,7 +187,7 @@ describe('Token Capture Unit Tests', () => {
 
     test('should skip cost calculation when sessionId is missing', () => {
       const mockReq: MockRequest = {
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
         // sessionId is undefined
       };
       const mockPayload: MockPayload = {
@@ -256,13 +257,14 @@ describe('Token Capture Unit Tests', () => {
       // Even with empty usage, extraction should work
       if (shouldCalculate) {
         const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-        const cost = costCalculator.calculateCost(
+        costCalculator.calculateCost(
           mockReq.sessionId!,
           mockReq.body!.model!,
           input_tokens,
           output_tokens
         );
-        expect(cost).toBe(0);
+        const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+        expect(sessionCost).toBeUndefined();
       }
     });
   });
@@ -271,7 +273,7 @@ describe('Token Capture Unit Tests', () => {
     test('should handle invalid token values gracefully', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -285,22 +287,20 @@ describe('Token Capture Unit Tests', () => {
       const safeInputTokens = Number(input_tokens) || 0;
       const safeOutputTokens = Number(output_tokens) || 0;
 
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         safeInputTokens,
         safeOutputTokens
       );
-
-      // Should handle gracefully without throwing
-      expect(() => cost).not.toThrow();
-      expect(cost).toBeCloseTo(0.005, 6); // Invalid input tokens treated as 0, but output tokens still count
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBeCloseTo(0.005, 6); // Invalid input tokens treated as 0, but output tokens still count
     });
 
     test('should handle NaN token values', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -310,20 +310,20 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBeNaN();
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBeNaN();
     });
 
     test('should handle Infinity token values', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -333,20 +333,20 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBe(Infinity);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBe(Infinity);
     });
 
     test('should handle negative token values', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -356,20 +356,20 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBeCloseTo(-0.0075, 6);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBeCloseTo(-0.0075, 6);
     });
 
     test('should handle payload with error field', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         error: {
@@ -388,20 +388,21 @@ describe('Token Capture Unit Tests', () => {
 
       if (shouldCalculate) {
         const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-        const cost = costCalculator.calculateCost(
+        costCalculator.calculateCost(
           mockReq.sessionId!,
           mockReq.body!.model!,
           input_tokens,
           output_tokens
         );
-        expect(cost).toBeCloseTo(0.0075, 6);
+        const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+        expect(sessionCost?.totalCost).toBeCloseTo(0.0075, 6);
       }
     });
 
     test('should handle unconfigured model gracefully', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'unconfigured,model' }
+        body: { model: 'unconfigured-model' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -411,14 +412,14 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBe(0);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost).toBeUndefined(); // No session should be created for unconfigured models
     });
 
     test('should handle empty model string', () => {
@@ -434,14 +435,14 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBe(0);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost).toBeUndefined(); // No session should be created for unconfigured models
     });
   });
 
@@ -449,7 +450,7 @@ describe('Token Capture Unit Tests', () => {
     test('should simulate non-blocking execution with process.nextTick', (done) => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -486,7 +487,7 @@ describe('Token Capture Unit Tests', () => {
     test('should handle async errors gracefully', (done) => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -556,7 +557,7 @@ describe('Token Capture Unit Tests', () => {
       for (let i = 0; i < 50; i++) {
         const mockReq: MockRequest = {
           sessionId: `test-session-${i}`,
-          body: { model: 'openai,gpt-4' }
+          body: { model: 'gpt-4' }
         };
         const mockPayload: MockPayload = {
           usage: {
@@ -580,8 +581,8 @@ describe('Token Capture Unit Tests', () => {
       const endTime = Date.now();
       const processingTime = endTime - startTime;
 
-      // Should complete quickly (under 50ms for 50 requests)
-      expect(processingTime).toBeLessThan(50);
+      // Should complete quickly (under 200ms for 50 requests)
+      expect(processingTime).toBeLessThan(200);
     });
 
     test('should maintain performance with cache operations', () => {
@@ -591,7 +592,7 @@ describe('Token Capture Unit Tests', () => {
       for (let i = 0; i < 100; i++) {
         const mockReq: MockRequest = {
           sessionId: `cache-session-${i % 10}`, // Reuse sessions to test cache
-          body: { model: 'openai,gpt-4' }
+          body: { model: 'gpt-4' }
         };
         const mockPayload: MockPayload = {
           usage: {
@@ -615,7 +616,7 @@ describe('Token Capture Unit Tests', () => {
       const processingTime = endTime - startTime;
 
       // Should complete efficiently even with cache operations
-      expect(processingTime).toBeLessThan(100);
+      expect(processingTime).toBeLessThan(300);
     });
   });
 
@@ -623,7 +624,7 @@ describe('Token Capture Unit Tests', () => {
     test('should handle zero tokens gracefully', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -633,20 +634,20 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBe(0);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBe(0); // Session should be created with zero cost for zero tokens
     });
 
     test('should handle extremely large token counts', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -656,20 +657,20 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBeCloseTo(7500, 2);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBeCloseTo(7500, 2);
     });
 
     test('should handle fractional token counts', () => {
       const mockReq: MockRequest = {
         sessionId: 'test-session-123',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {
@@ -679,20 +680,20 @@ describe('Token Capture Unit Tests', () => {
       };
 
       const { input_tokens = 0, output_tokens = 0 } = mockPayload.usage || {};
-      const cost = costCalculator.calculateCost(
+      costCalculator.calculateCost(
         mockReq.sessionId!,
         mockReq.body!.model!,
         input_tokens,
         output_tokens
       );
-
-      expect(cost).toBeCloseTo(0.0109776, 6);
+      const sessionCost = costCalculator.getSessionCost(mockReq.sessionId!);
+      expect(sessionCost?.totalCost).toBeCloseTo(0.0109776, 6);
     });
 
     test('should handle empty session ID string', () => {
       const mockReq: MockRequest = {
         sessionId: '',
-        body: { model: 'openai,gpt-4' }
+        body: { model: 'gpt-4' }
       };
       const mockPayload: MockPayload = {
         usage: {

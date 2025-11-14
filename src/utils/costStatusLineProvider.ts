@@ -298,7 +298,7 @@ export class CostStatusLineProvider {
       'trackingStatus': 'Current tracking state (Active/Disabled)',
       'statusMessage': 'Detailed status message with model count',
       'statusColor': 'Color indicator for status (gray/green/yellow/red)',
-      'cost.*': 'Dynamic variables for specific model costs (e.g., cost.openai_gpt_4)'
+      'cost.*': 'Dynamic variables for specific model costs (e.g., cost.gpt_4)'
     };
   }
 }

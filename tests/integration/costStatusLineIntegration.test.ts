@@ -34,13 +34,13 @@ describe('Cost Status Line Integration', () => {
     enabled: true,
     default_currency: 'USD',
     model_pricing: {
-      'openai,gpt-4': {
-        input_tokens_per_million: 2.50,
-        output_tokens_per_million: 10.00
+      'gpt-4': {
+        input_cost_per_million: 2.50,
+        output_cost_per_million: 10.00
       },
-      'anthropic,claude-3.5-sonnet': {
-        input_tokens_per_million: 3.00,
-        output_tokens_per_million: 15.00
+      'claude-3.5-sonnet': {
+        input_cost_per_million: 3.00,
+        output_cost_per_million: 15.00
       }
     }
   };
@@ -109,7 +109,7 @@ describe('Cost Status Line Integration', () => {
 
       // Add cost data
       const sessionId = 'test-session-123';
-      costCalculator.calculateCost(sessionId, 'openai,gpt-4', 1000, 500);
+      costCalculator.calculateCost(sessionId, 'gpt-4', 1000, 500);
 
       // Mock status line input
       const mockInput = {
@@ -217,8 +217,8 @@ describe('Cost Status Line Integration', () => {
       registerCostStatusLineProvider(statusLineProvider);
 
       // Simulate multiple API calls
-      costCalculator.calculateCost(sessionId, 'openai,gpt-4', 1000, 500);
-      costCalculator.calculateCost(sessionId, 'anthropic,claude-3.5-sonnet', 800, 400);
+      costCalculator.calculateCost(sessionId, 'gpt-4', 1000, 500);
+      costCalculator.calculateCost(sessionId, 'claude-3.5-sonnet', 800, 400);
 
       // Get cost variables for status line
       const costVariables = statusLineProvider.getCostVariables(sessionId);
@@ -232,8 +232,8 @@ describe('Cost Status Line Integration', () => {
       expect(costVariables.topModelCost).toBeDefined();
 
       // Verify model-specific variables
-      expect(costVariables['cost.openai_gpt_4']).toBeDefined();
-      expect(costVariables['cost.anthropic_claude_3_5_sonnet']).toBeDefined();
+      expect(costVariables['cost.gpt_4']).toBeDefined();
+      expect(costVariables['cost.claude_3_5_sonnet']).toBeDefined();
 
       // Verify cost calculations are correct
       const totalCost = parseFloat(costVariables.totalCostRaw);
@@ -274,7 +274,7 @@ describe('Cost Status Line Integration', () => {
       const sessionId = 'variable-test-session';
 
       // Add cost data
-      costCalculator.calculateCost(sessionId, 'openai,gpt-4', 1000, 500);
+      costCalculator.calculateCost(sessionId, 'gpt-4', 1000, 500);
 
       // Test various template patterns
       const templates = [
@@ -303,7 +303,7 @@ describe('Cost Status Line Integration', () => {
 
     test('should handle unknown variables gracefully in templates', () => {
       const sessionId = 'unknown-vars-test';
-      costCalculator.calculateCost(sessionId, 'openai,gpt-4', 1000, 500);
+      costCalculator.calculateCost(sessionId, 'gpt-4', 1000, 500);
 
       const template = 'Known: {{totalCost}}, Unknown: {{unknownVariable}}, Another: {{anotherUnknown}}';
       const result = statusLineProvider.generateStatusLine(sessionId, template);
@@ -318,7 +318,7 @@ describe('Cost Status Line Integration', () => {
 
     test('should handle empty templates', () => {
       const sessionId = 'empty-template-test';
-      costCalculator.calculateCost(sessionId, 'openai,gpt-4', 1000, 500);
+      costCalculator.calculateCost(sessionId, 'gpt-4', 1000, 500);
 
       const result = statusLineProvider.generateStatusLine(sessionId, '');
       expect(result).toBe('');
@@ -451,7 +451,7 @@ describe('Cost Status Line Integration', () => {
 
       // Add cost data for each session
       sessions.forEach(sessionId => {
-        costCalculator.calculateCost(sessionId, 'openai,gpt-4', 1000, 500);
+        costCalculator.calculateCost(sessionId, 'gpt-4', 1000, 500);
       });
 
       // Generate status lines for all sessions

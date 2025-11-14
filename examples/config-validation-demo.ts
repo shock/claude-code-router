@@ -41,18 +41,18 @@ const validConfig: CostTrackingConfig = {
   default_currency: 'USD',
   model_pricing: {
     'openai,gpt-4': {
-      input_tokens_per_million: 2.50,
-      output_tokens_per_million: 10.00,
+      input_cost_per_million: 2.50,
+      output_cost_per_million: 10.00,
       currency: 'USD'
     },
     'anthropic,claude-3.5-sonnet': {
-      input_tokens_per_million: 3.00,
-      output_tokens_per_million: 15.00,
+      input_cost_per_million: 3.00,
+      output_cost_per_million: 15.00,
       currency: 'USD'
     },
     'anthropic,claude-3-haiku': {
-      input_tokens_per_million: 0.25,
-      output_tokens_per_million: 1.25,
+      input_cost_per_million: 0.25,
+      output_cost_per_million: 1.25,
       currency: 'USD'
     }
   }
@@ -64,12 +64,12 @@ const configWithErrors: CostTrackingConfig = {
   default_currency: 'USD',
   model_pricing: {
     'invalid-model-format': {
-      input_tokens_per_million: 1.0,
-      output_tokens_per_million: 2.0
+      input_cost_per_million: 1.0,
+      output_cost_per_million: 2.0
     },
     'openai,gpt-4': {
-      input_tokens_per_million: -1.0,
-      output_tokens_per_million: -2.0
+      input_cost_per_million: -1.0,
+      output_cost_per_million: -2.0
     }
   }
 };
@@ -80,8 +80,8 @@ const configWithWarnings: CostTrackingConfig = {
   default_currency: 'USD',
   model_pricing: {
     'openai,gpt-4': {
-      input_tokens_per_million: 2.50,
-      output_tokens_per_million: 10.00,
+      input_cost_per_million: 2.50,
+      output_cost_per_million: 10.00,
       currency: 'XYZ' // Unsupported currency
     }
   }
@@ -93,8 +93,8 @@ const configWithMissingPricing: CostTrackingConfig = {
   default_currency: 'USD',
   model_pricing: {
     'openai,gpt-4': {
-      input_tokens_per_million: 2.50,
-      output_tokens_per_million: 10.00
+      input_cost_per_million: 2.50,
+      output_cost_per_million: 10.00
     }
     // Missing pricing for anthropic,claude-3-haiku and anthropic,claude-3.5-sonnet
   }
