@@ -46,6 +46,20 @@ npm install -g @musistudio/claude-code-router
 
 Create and configure your `~/.claude-code-router/config.json` file. For more details, you can refer to `config.example.json`.
 
+#### Configuration File Location
+
+By default, the configuration file is located at:
+```
+~/.claude-code-router/config.json
+```
+
+You can override this location using the `CCR_CFG_FILE` environment variable:
+```shell
+export CCR_CFG_FILE="/path/to/your/custom/config.json"
+```
+
+If the file specified in `CCR_CFG_FILE` doesn't exist, the application will fall back to the default location with a warning message.
+
 The `config.json` file has several key sections:
 
 - **`PROXY_URL`** (optional): You can set a proxy for API requests, for example: `"PROXY_URL": "http://127.0.0.1:7890"`.

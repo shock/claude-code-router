@@ -16,12 +16,14 @@ import fs, { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
 const command = process.argv[2];
+const args = process.argv.slice(3);
 
 const HELP_TEXT = `
-Usage: ccr [command]
+Usage: ccr [command] [options]
 
 Commands:
-  start         Start server 
+  start         Start server
+    --background  Run server in background (default: foreground)
   stop          Stop server
   restart       Restart server
   status        Show server status
@@ -32,8 +34,9 @@ Commands:
   -v, version   Show version information
   -h, help      Show help information
 
-Example:
-  ccr start
+Examples:
+  ccr start                    # Start in foreground (default)
+  ccr start --background       # Start in background
   ccr code "Write a Hello World"
   ccr model
   ccr ui
@@ -63,7 +66,43 @@ async function main() {
   const isRunning = await isServiceRunning()
   switch (command) {
     case "start":
-      run();
+      if (isRunning) {
+        console.log("✅ Service is already running.");
+        break;
+      }
+
+      // Check for --background option
+      const backgroundMode = args.includes("--background");
+
+      // Check if we're already in background mode (to prevent infinite loop)
+      if (process.env.CCR_BACKGROUND_MODE === "true") {
+        // We're in background mode, actually run the server
+        run();
+      } else if (backgroundMode) {
+        // We're in CLI mode with --background flag, spawn background process
+        console.log("Starting claude code router service...");
+        const cliPath = join(__dirname, "cli.js");
+        const startProcess = spawn("node", [cliPath, "start"], {
+          detached: true,
+          stdio: "ignore",
+          env: {
+            ...process.env,
+            CCR_BACKGROUND_MODE: "true"
+          }
+        });
+
+        startProcess.on("error", (error) => {
+          console.error("Failed to start service:", error);
+          process.exit(1);
+        });
+
+        startProcess.unref();
+        console.log("✅ Service started successfully in the background.");
+      } else {
+        // Default: run in foreground mode - directly call run() without spawning
+        console.log("Starting claude code router service in foreground...");
+        run();
+      }
       break;
     case "stop":
       try {
@@ -284,6 +323,9 @@ async function main() {
       console.log(`claude-code-router version: ${version}`);
       break;
     case "restart":
+      // Check for --background option
+      const restartBackgroundMode = args.includes("--background");
+
       // Stop the service if it's running
       try {
         const pid = parseInt(readFileSync(PID_FILE, "utf-8"));
@@ -302,21 +344,27 @@ async function main() {
         cleanupPidFile();
       }
 
-      // Start the service again in the background
-      console.log("Starting claude code router service...");
-      const cliPath = join(__dirname, "cli.js");
-      const startProcess = spawn("node", [cliPath, "start"], {
-        detached: true,
-        stdio: "ignore",
-      });
+      if (restartBackgroundMode) {
+        // Start the service in background mode
+        console.log("Starting claude code router service...");
+        const cliPath = join(__dirname, "cli.js");
+        const startProcess = spawn("node", [cliPath, "start"], {
+          detached: true,
+          stdio: "ignore",
+        });
 
-      startProcess.on("error", (error) => {
-        console.error("Failed to start service:", error);
-        process.exit(1);
-      });
+        startProcess.on("error", (error) => {
+          console.error("Failed to start service:", error);
+          process.exit(1);
+        });
 
-      startProcess.unref();
-      console.log("✅ Service started successfully in the background.");
+        startProcess.unref();
+        console.log("✅ Service started successfully in the background.");
+      } else {
+        // Default: Start the service in foreground mode
+        console.log("Starting claude code router service in foreground...");
+        run();
+      }
       break;
     case "-h":
     case "help":

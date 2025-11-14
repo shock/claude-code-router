@@ -24,6 +24,7 @@ import type {
   StatusLineConfig,
   StatusLineModuleConfig,
   StatusLineThemeConfig,
+  StatusLineModuleType,
 } from "@/types";
 
 const DEFAULT_MODULE: StatusLineModuleConfig = {
@@ -52,6 +53,7 @@ const MODULE_TYPES = [
   { label: "model", value: "model" },
   { label: "usage", value: "usage" },
   { label: "script", value: "script" },
+  { label: "cost", value: "cost" },
 ];
 
 // ANSI颜色代码映射
@@ -893,7 +895,8 @@ export function StatusLineConfigDialog({
 
                     // 根据模块类型设置默认值
                     let newModule: StatusLineModuleConfig;
-                    switch (moduleType) {
+                    const typedModuleType = moduleType as StatusLineModuleType;
+                    switch (typedModuleType) {
                       case "workDir":
                         newModule = {
                           type: "workDir",
@@ -935,8 +938,19 @@ export function StatusLineConfigDialog({
                           scriptPath: "",
                         };
                         break;
+                      case "cost":
+                        newModule = {
+                          type: "cost",
+                          icon: "💰",
+                          text: "{{cost}}",
+                          color: "bright_yellow",
+                          show_breakdown: false,
+                          precision: 4,
+                          format: "currency",
+                        } as StatusLineModuleConfig;
+                        break;
                       default:
-                        newModule = { ...DEFAULT_MODULE, type: moduleType };
+                        newModule = { ...DEFAULT_MODULE, type: typedModuleType };
                     }
 
                     modules.push(newModule);

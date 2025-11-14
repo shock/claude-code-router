@@ -9,6 +9,8 @@ import {
   PLUGINS_DIR,
 } from "../constants";
 import { cleanupLogFiles } from "./logCleanup";
+import { CostTrackingConfig } from "../types/cost";
+import { CostConfigValidator } from "../config/costConfig";
 
 // Function to interpolate environment variables in config values
 const interpolateEnvVars = (obj: any): any => {
@@ -67,21 +69,36 @@ const confirm = async (query: string): Promise<boolean> => {
 };
 
 export const readConfigFile = async () => {
+  const defaultConfigPath = path.join(HOME_DIR, "config.json");
+  const configPath = CONFIG_FILE;
+
   try {
-    const config = await fs.readFile(CONFIG_FILE, "utf-8");
+    const config = await fs.readFile(configPath, "utf-8");
     try {
       // Try to parse with JSON5 first (which also supports standard JSON)
       const parsedConfig = JSON5.parse(config);
       // Interpolate environment variables in the parsed config
       return interpolateEnvVars(parsedConfig);
     } catch (parseError) {
-      console.error(`Failed to parse config file at ${CONFIG_FILE}`);
+      console.error(`Failed to parse config file at ${configPath}`);
       console.error("Error details:", (parseError as Error).message);
       console.error("Please check your config file syntax.");
       process.exit(1);
     }
   } catch (readError: any) {
     if (readError.code === "ENOENT") {
+      // If CCR_CFG_FILE is set but file doesn't exist, fall back to default location
+      if (process.env.CCR_CFG_FILE && configPath !== defaultConfigPath) {
+        console.warn(`Config file not found at CCR_CFG_FILE=${configPath}, falling back to default location: ${defaultConfigPath}`);
+        // Try to read from default location directly without recursion
+        try {
+          const defaultConfig = await fs.readFile(defaultConfigPath, "utf-8");
+          const parsedConfig = JSON5.parse(defaultConfig);
+          return interpolateEnvVars(parsedConfig);
+        } catch {
+          // If default location also fails, continue with normal setup flow
+        }
+      }
       // Config file doesn't exist, prompt user for initial setup
       try {
         // Initialize directories
@@ -102,7 +119,7 @@ export const readConfigFile = async () => {
         // Create a minimal default config file
         await writeConfigFile(config);
         console.log(
-            "Created minimal default configuration file at ~/.claude-code-router/config.json"
+            `Created minimal default configuration file at ${configPath}`
         );
         console.log(
             "Please edit this file with your actual configuration."
@@ -116,7 +133,7 @@ export const readConfigFile = async () => {
         process.exit(1);
       }
     } else {
-      console.error(`Failed to read config file at ${CONFIG_FILE}`);
+      console.error(`Failed to read config file at ${configPath}`);
       console.error("Error details:", readError.message);
       process.exit(1);
     }
@@ -167,11 +184,65 @@ export const writeConfigFile = async (config: any) => {
   await fs.writeFile(CONFIG_FILE, configWithComment);
 };
 
-export const initConfig = async () => {
+export interface RouterConfig {
+  Providers: any[];
+  Router: any;
+  CostTracking?: CostTrackingConfig;
+  [key: string]: any;
+}
+
+export const initConfig = async (): Promise<RouterConfig> => {
   const config = await readConfigFile();
   Object.assign(process.env, config);
-  return config;
+
+  // Validate and initialize cost tracking configuration
+  const costTrackingConfig = await validateAndInitializeCostConfig(config);
+
+  return {
+    ...config,
+    CostTracking: costTrackingConfig
+  };
 };
+
+/**
+ * Validates and initializes cost tracking configuration with graceful error handling
+ * @param config The router configuration
+ * @returns Validated and initialized cost tracking configuration
+ */
+async function validateAndInitializeCostConfig(config: any): Promise<CostTrackingConfig> {
+  try {
+    // Get cost tracking configuration from config or use defaults
+    const costConfig = config.CostTracking || {};
+    const mergedConfig = CostConfigValidator.mergeWithDefaults(costConfig);
+
+    // If cost tracking is disabled, return the disabled configuration
+    if (!mergedConfig.enabled) {
+      return mergedConfig;
+    }
+
+    // User confirmation option defaults
+    const userConfirmationOptions = {
+      continueWithErrors: false,
+      continueWithMissingPricing: false,
+      useDefaultCurrency: true
+    };
+
+    // Validate and initialize with user confirmation
+    const validatedConfig = await CostConfigValidator.validateAndInitializeCostConfig(
+      mergedConfig,
+      config,
+      userConfirmationOptions
+    );
+
+    return validatedConfig;
+  } catch (error) {
+    // Log error but don't fail - router should continue with default configuration
+    console.error('Error loading cost tracking configuration:', error);
+
+    // Return default disabled configuration
+    return CostConfigValidator.getDefaultConfig();
+  }
+}
 
 // 导出日志清理函数
 export { cleanupLogFiles };

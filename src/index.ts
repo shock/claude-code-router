@@ -14,7 +14,7 @@ import {
 import { CONFIG_FILE } from "./constants";
 import { createStream } from 'rotating-file-stream';
 import { HOME_DIR } from "./constants";
-import { sessionUsageCache } from "./utils/cache";
+import { sessionUsageCache, Usage } from "./utils/cache";
 import {SSEParserTransform} from "./utils/SSEParser.transform";
 import {SSESerializerTransform} from "./utils/SSESerializer.transform";
 import {rewriteStream} from "./utils/rewriteStream";
@@ -22,6 +22,7 @@ import JSON5 from "json5";
 import { IAgent } from "./agents/type";
 import agentsManager from "./agents";
 import { EventEmitter } from "node:events";
+import { CostTracker } from "./utils/costTracker";
 
 const event = new EventEmitter()
 
@@ -63,6 +64,8 @@ async function run(options: RunOptions = {}) {
   await cleanupLogFiles();
   const config = await initConfig();
 
+  // Initialize cost tracking if enabled
+  const costTracker = new CostTracker(config);
 
   let HOST = config.HOST || "127.0.0.1";
 
@@ -198,6 +201,7 @@ async function run(options: RunOptions = {}) {
     event.emit('onError', request, reply, error);
   })
   server.addHook("onSend", (req, reply, payload, done) => {
+
     if (req.sessionId && req.url.startsWith("/v1/messages") && !req.url.startsWith("/v1/messages/count_tokens")) {
       if (payload instanceof ReadableStream) {
         if (req.agents) {
@@ -341,7 +345,12 @@ async function run(options: RunOptions = {}) {
               const str = dataStr.slice(27);
               try {
                 const message = JSON.parse(str);
-                sessionUsageCache.put(req.sessionId, message.usage);
+                const usage = {
+                  input_tokens: (message.usage?.input_tokens || 0),
+                  output_tokens: (message.usage?.output_tokens || 0)
+                };
+                sessionUsageCache.put(req.sessionId, usage);
+                costTracker.updateSessionCost(req, usage);
               } catch {}
             }
           } catch (readError: any) {
@@ -357,7 +366,12 @@ async function run(options: RunOptions = {}) {
         read(clonedStream);
         return done(null, originalStream)
       }
-      sessionUsageCache.put(req.sessionId, payload.usage);
+      const usage = {
+        input_tokens: (payload.usage?.input_tokens || 0),
+        output_tokens: (payload.usage?.output_tokens || 0)
+      }
+      sessionUsageCache.put(req.sessionId, usage);
+      costTracker.updateSessionCost(req, usage);
       if (typeof payload ==='object') {
         if (payload.error) {
           return done(payload.error, null)

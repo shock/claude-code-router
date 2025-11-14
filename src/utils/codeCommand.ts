@@ -28,9 +28,12 @@ export async function executeCodeCommand(args: string[] = []) {
     env
   };
   if (config?.StatusLine?.enabled) {
+    // Use the current executable path (process.argv[1]) instead of hardcoded "ccr"
+    // This ensures we use the same build that's currently running
+    const currentExecutable = process.argv[1] || "ccr";
     settingsFlag.statusLine = {
       type: "command",
-      command: "ccr statusline",
+      command: `${currentExecutable} statusline`,
       padding: 0,
     }
   }
