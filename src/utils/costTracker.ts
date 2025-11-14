@@ -28,7 +28,6 @@ export class CostTracker {
     // Asynchronous cost calculation - don't await to avoid blocking
     if (req.sessionId && model) {
       const { input_tokens, output_tokens } = usage;
-      console.log(`Updating cost for session ${req.sessionId.split('-')[0]}..., model: ${model}, input_tokens: ${input_tokens}, output_tokens: ${output_tokens}`);
       process.nextTick(() => {
         try {
           this.costCalculator.updateSessionCost(

@@ -62,7 +62,7 @@ export class CostCalculator {
     inputTokens: number,
     outputTokens: number,
   ): void {
-    // console.log(`Updating cost for session ${sessionId}, model ${model}: ${inputTokens} input tokens, ${outputTokens} output tokens.`);
+    // console.log(`Updating cost for session ${sessionId.split('-')[0]}..., model: ${model}, input_tokens: ${inputTokens}, output_tokens: ${outputTokens}`);
     // Get existing session cost or create new one
     let sessionCost = this.costCache.get(sessionId);
     if (!sessionCost) {
