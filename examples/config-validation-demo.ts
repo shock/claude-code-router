@@ -40,17 +40,17 @@ const validConfig: CostTrackingConfig = {
   enabled: true,
   default_currency: 'USD',
   model_pricing: {
-    'openai,gpt-4': {
+    'gpt-4': {
       input_cost_per_million: 2.50,
       output_cost_per_million: 10.00,
       currency: 'USD'
     },
-    'anthropic,claude-3.5-sonnet': {
+    'claude-3.5-sonnet': {
       input_cost_per_million: 3.00,
       output_cost_per_million: 15.00,
       currency: 'USD'
     },
-    'anthropic,claude-3-haiku': {
+    'claude-3-haiku': {
       input_cost_per_million: 0.25,
       output_cost_per_million: 1.25,
       currency: 'USD'
@@ -63,7 +63,7 @@ const configWithErrors: CostTrackingConfig = {
   enabled: true,
   default_currency: 'USD',
   model_pricing: {
-    'invalid-model-format': {
+    'invalid!model-format': {
       input_cost_per_million: 1.0,
       output_cost_per_million: 2.0
     },
@@ -79,7 +79,7 @@ const configWithWarnings: CostTrackingConfig = {
   enabled: true,
   default_currency: 'USD',
   model_pricing: {
-    'openai,gpt-4': {
+    'gpt-4': {
       input_cost_per_million: 2.50,
       output_cost_per_million: 10.00,
       currency: 'XYZ' // Unsupported currency
@@ -92,7 +92,7 @@ const configWithMissingPricing: CostTrackingConfig = {
   enabled: true,
   default_currency: 'USD',
   model_pricing: {
-    'openai,gpt-4': {
+    'gpt-4': {
       input_cost_per_million: 2.50,
       output_cost_per_million: 10.00
     }
@@ -139,7 +139,7 @@ async function demonstrateValidation() {
   const result4 = await validateAndInitializeCostConfig(configWithWarnings, routerConfig, lenientOptions);
   console.log(`   Result: ${result4.enabled ? '✅ Cost tracking enabled' : '❌ Cost tracking disabled'}`);
   console.log(`   Models configured: ${Object.keys(result4.model_pricing).length}`);
-  console.log(`   Currency fixed: ${result4.model_pricing['openai,gpt-4'].currency === 'USD' ? '✅' : '❌'}\n`);
+  console.log(`   Currency fixed: ${result4.model_pricing['gpt-4'].currency === 'USD' ? '✅' : '❌'}\n`);
 
   // Demo 5: Configuration with missing pricing
   console.log('5. Configuration with Missing Pricing:');
@@ -149,8 +149,8 @@ async function demonstrateValidation() {
 
   // Demo 6: Model format validation
   console.log('6. Model Format Validation:');
-  const validModels = ['openai,gpt-4', 'anthropic,claude-3.5-sonnet'];
-  const invalidModels = ['invalid', 'provider,', ',model'];
+  const validModels = ['openai:gpt-4', '@preset:openai:gpt-4', 'claude-3.5-sonnet'];
+  const invalidModels = ['provider,model', 'invalid|model', 'provider space,', ',model'];
 
   console.log('   Valid models:');
   validModels.forEach(model => {
@@ -163,6 +163,7 @@ async function demonstrateValidation() {
   });
 
   console.log('\n=== Demo Complete ===');
+  console.log('CTR+C to exit.');
 }
 
 // Run the demonstration

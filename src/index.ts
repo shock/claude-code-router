@@ -22,9 +22,7 @@ import JSON5 from "json5";
 import { IAgent } from "./agents/type";
 import agentsManager from "./agents";
 import { EventEmitter } from "node:events";
-import { CostCalculator } from "./utils/costCalculator";
-import { CostStatusLineProvider } from "./utils/costStatusLineProvider";
-import { registerCostStatusLineProvider } from "./utils/statusline";
+import { CostTracker } from "./utils/costTracker";
 
 const event = new EventEmitter()
 
@@ -66,37 +64,8 @@ async function run(options: RunOptions = {}) {
   await cleanupLogFiles();
   const config = await initConfig();
 
-  // Initialize cost calculator if enabled
-  let costCalculator: CostCalculator | null = null;
-  if (config.CostTracking?.enabled) {
-    try {
-      costCalculator = new CostCalculator(config.CostTracking);
-      console.log("✅ Cost tracking enabled and initialized successfully.");
-      // console.log(`config.CostTracking: ${JSON.stringify(config.CostTracking)}`);
-      // Register cost status line provider for status line integration
-      const costStatusLineProvider = new CostStatusLineProvider(costCalculator, config.CostTracking);
-      registerCostStatusLineProvider(costStatusLineProvider);
-      console.log("✅ Cost status line provider registered successfully.");
-    } catch (error) {
-      console.error("❌ Failed to initialize cost calculator:", error);
-      console.warn("⚠️  Cost tracking will be disabled for this session.");
-
-      // Write error to file for debugging since background process hides console output
-      const fs = require('fs');
-      const path = require('path');
-      const errorLog = {
-        timestamp: new Date().toISOString(),
-        error: error?.message || error,
-        stack: error?.stack,
-        config: config.CostTracking
-      };
-      const errorLogPath = path.join(process.env.HOME || '', '.claude-code-router', 'cost-tracking-error.log');
-      fs.writeFileSync(errorLogPath, JSON.stringify(errorLog, null, 2));
-    }
-  } else {
-    console.log("ℹ️  Cost tracking is disabled.");
-  }
-
+  // Initialize cost tracking if enabled
+  const costTracker = new CostTracker(config);
 
   let HOST = config.HOST || "127.0.0.1";
 
@@ -224,8 +193,7 @@ async function run(options: RunOptions = {}) {
       }
       await router(req, reply, {
         config,
-        event,
-        costCalculator
+        event
       });
     }
   });
@@ -233,47 +201,8 @@ async function run(options: RunOptions = {}) {
     event.emit('onError', request, reply, error);
   })
   server.addHook("onSend", (req, reply, payload, done) => {
-    const updateUsage = (req, payload) => {
-      console.log(`onSend cost hook triggered for URL: ${req.url} - Session ID: ${req.sessionId} - `, payload);
-
-      // Check cache first (streaming responses with accumulated usage)
-      let usage = sessionUsageCache.get(req.sessionId);
-      // Fallback to payload (non-streaming responses)
-      if (usage === undefined && payload?.usage) {
-        usage = payload.usage as Usage;
-      }
-
-      // Asynchronous cost calculation - don't await to avoid blocking
-      if (costCalculator && req.sessionId && req.body?.model && usage) {
-        const { input_tokens, output_tokens } = usage;
-        process.nextTick(() => {
-          try {
-            costCalculator.updateSessionCost(
-              req.sessionId,
-              req.body.model,
-              input_tokens || 0,
-              output_tokens || 0
-            );
-          } catch (error) {
-            // Log error but don't fail the request
-            console.error('Cost calculation error:', error);
-          }
-        });
-      } else {
-        // log specific reason why the logic is skipped
-        let failedReasons = [];
-        if (!costCalculator) failedReasons.push('Cost calculator not initialized');
-        if (!req.sessionId) failedReasons.push('sessionId not found in request');
-        if (!req.body?.model) failedReasons.push('Model not specified in request body');
-        if (!usage) failedReasons.push('Usage data not found in response');
-
-        console.log('Cost calculation skipped for URL:', req.url);
-        console.log('Reasons:', failedReasons.join(', '));
-      };
-    }
 
     if (req.sessionId && req.url.startsWith("/v1/messages") && !req.url.startsWith("/v1/messages/count_tokens")) {
-      sessionUsageCache.delete(req.sessionId);
       if (payload instanceof ReadableStream) {
         if (req.agents) {
           const abortController = new AbortController();
@@ -421,8 +350,7 @@ async function run(options: RunOptions = {}) {
                   output_tokens: (message.usage?.output_tokens || 0)
                 };
                 sessionUsageCache.put(req.sessionId, usage);
-                console.log(`Session ${req.sessionId} usage for url ${req.url} updated in stream:`, usage);
-                updateUsage(req, usage);
+                costTracker.updateSessionCost(req, usage);
               } catch {}
             }
           } catch (readError: any) {
@@ -443,8 +371,7 @@ async function run(options: RunOptions = {}) {
         output_tokens: (payload.usage?.output_tokens || 0)
       }
       sessionUsageCache.put(req.sessionId, usage);
-      updateUsage(req, usage);
-      console.log(`Session ${req.sessionId} usage for url ${req.url} updated:`, usage);
+      costTracker.updateSessionCost(req, usage);
       if (typeof payload ==='object') {
         if (payload.error) {
           return done(payload.error, null)

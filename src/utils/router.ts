@@ -180,7 +180,7 @@ const getUseModel = async (
 };
 
 export const router = async (req: any, _res: any, context: any) => {
-  const { config, event, costCalculator } = context;
+  const { config, event } = context;
   // Parse sessionId from metadata.user_id
   if (req.body.metadata?.user_id) {
     const parts = req.body.metadata.user_id.split("_session_");

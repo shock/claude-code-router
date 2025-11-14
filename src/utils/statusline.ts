@@ -491,19 +491,10 @@ function renderCostModuleText(
     }
   }
 
-  // 默认情况：使用模板文本并进行变量替换
+  // Default case: use template text and perform variable substitution
   let result = replaceVariables(text, variables);
 
-  // 对成本相关的变量应用格式化
-  const costVariables = ['totalCost', 'totalCostRaw', 'topModelCost'];
-  for (const varName of costVariables) {
-    if (variables[varName] && result.includes(variables[varName])) {
-      const formattedValue = formatCostValue(variables[varName], format, precision);
-      result = result.replace(variables[varName], formattedValue);
-    }
-  }
-
-  // 处理动态模型成本变量
+  // Handle dynamic model cost variables (these need formatting)
   const modelCostRegex = /\{\{cost\.(\w+)\}\}/g;
   result = result.replace(modelCostRegex, (match, modelVar) => {
     const fullVarName = `cost.${modelVar}`;

@@ -64,7 +64,7 @@ export class CostConfigValidator {
     if (config.model_pricing) {
       for (const [model, pricing] of Object.entries(config.model_pricing)) {
         if (!this.isValidModelFormat(model)) {
-          errors.push(`Invalid model format: "${model}". Model name must be a non-empty string with only alphanumeric characters and @,/-_.`);
+          errors.push(`Invalid model format: "${model}". Model name must be a non-empty string with only alphanumeric characters and @,/-_.:`);
         }
         if (pricing.input_cost_per_million < 0) {
           errors.push(`Invalid input pricing for ${model}: can't be negative`);
@@ -188,7 +188,7 @@ export class CostConfigValidator {
    * @returns Whether model format is valid
    */
   static isValidModelFormat(model: string): boolean {
-    return typeof model === 'string' && /^[a-zA-Z0-9_.\-@/]+$/.test(model);
+    return typeof model === 'string' && /^[a-zA-Z0-9_.\-@/:s]+$/.test(model);
   }
 
   /**
