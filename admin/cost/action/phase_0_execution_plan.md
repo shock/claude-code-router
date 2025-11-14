@@ -168,8 +168,8 @@ The only exceptions are pre-implementation steps, which must be performed by the
   }
 
   interface ModelPricing {
-    input_tokens_per_million: number;
-    output_tokens_per_million: number;
+    input_cost_per_million: number;
+    output_cost_per_million: number;
     currency?: string;
   }
   ```

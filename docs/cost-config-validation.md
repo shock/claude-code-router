@@ -26,8 +26,8 @@ const config: CostTrackingConfig = {
   default_currency: 'USD',
   model_pricing: {
     'openai,gpt-4': {
-      input_tokens_per_million: 2.50,
-      output_tokens_per_million: 10.00,
+      input_cost_per_million: 2.50,
+      output_cost_per_million: 10.00,
       currency: 'USD'
     }
   }
@@ -167,13 +167,13 @@ interface UserConfirmationOptions {
     "default_currency": "USD",
     "model_pricing": {
       "openai,gpt-4": {
-        "input_tokens_per_million": 2.5,
-        "output_tokens_per_million": 10.0,
+        "input_cost_per_million": 2.5,
+        "output_cost_per_million": 10.0,
         "currency": "USD"
       },
       "anthropic,claude-3.5-sonnet": {
-        "input_tokens_per_million": 3.0,
-        "output_tokens_per_million": 15.0,
+        "input_cost_per_million": 3.0,
+        "output_cost_per_million": 15.0,
         "currency": "USD"
       }
     }

@@ -45,7 +45,7 @@ All implementation steps must be performed by sub-agents. The main agent should 
 **Requirements:**
 - Create comprehensive type definitions for cost tracking
 - Implement interfaces from master plan:
-  - `ModelPricing` with `input_tokens_per_million`, `output_tokens_per_million`, and optional `currency`
+  - `ModelPricing` with `input_cost_per_million`, `output_cost_per_million`, and optional `currency`
   - `SessionCostData` with `sessionId`, `startTime`, `totalCost`, `modelCosts`, and `currency`
   - `CostTrackingConfig` with `enabled`, `default_currency`, and `model_pricing`
 - Ensure type safety and proper TypeScript conventions
@@ -54,8 +54,8 @@ All implementation steps must be performed by sub-agents. The main agent should 
 **Source Code Example from Master Plan:**
 ```typescript
 interface ModelPricing {
-  input_tokens_per_million: number;
-  output_tokens_per_million: number;
+  input_cost_per_million: number;
+  output_cost_per_million: number;
   currency?: string;
 }
 
@@ -137,8 +137,8 @@ class CostCalculator {
       return cachedCost;
     }
 
-    const inputCost = (inputTokens * pricing.input_tokens_per_million) / 1000000;
-    const outputCost = (outputTokens * pricing.output_tokens_per_million) / 1000000;
+    const inputCost = (inputTokens * pricing.input_cost_per_million) / 1000000;
+    const outputCost = (outputTokens * pricing.output_cost_per_million) / 1000000;
     const totalCost = inputCost + outputCost;
 
     // Cache the calculation
@@ -212,10 +212,10 @@ class CostConfigValidator {
         if (!this.isValidModelFormat(model)) {
           errors.push(`Invalid model format: "${model}". Expected format: "<provider>,<model>"`);
         }
-        if (pricing.input_tokens_per_million <= 0) {
+        if (pricing.input_cost_per_million <= 0) {
           errors.push(`Invalid input pricing for ${model}: must be positive`);
         }
-        if (pricing.output_tokens_per_million <= 0) {
+        if (pricing.output_cost_per_million <= 0) {
           errors.push(`Invalid output pricing for ${model}: must be positive`);
         }
         if (pricing.currency && !this.isValidCurrency(pricing.currency)) {

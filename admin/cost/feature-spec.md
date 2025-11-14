@@ -50,20 +50,20 @@ Add cost tracking configuration to `config.json`:
     "default_currency": "USD",
     "model_pricing": {
       "openai,gpt-4.1": {
-        "input_tokens_per_million": 2.50,
-        "output_tokens_per_million": 10.00
+        "input_cost_per_million": 2.50,
+        "output_cost_per_million": 10.00
       },
       "openrouter,deepseek-chat": {
-        "input_tokens_per_million": 0.15,
-        "output_tokens_per_million": 0.60
+        "input_cost_per_million": 0.15,
+        "output_cost_per_million": 0.60
       },
       "anthropic,claude-3-5-sonnet": {
-        "input_tokens_per_million": 3.00,
-        "output_tokens_per_million": 15.00
+        "input_cost_per_million": 3.00,
+        "output_cost_per_million": 15.00
       },
       "google,gemini-2.5-flash": {
-        "input_tokens_per_million": 0.10,
-        "output_tokens_per_million": 0.40
+        "input_cost_per_million": 0.10,
+        "output_cost_per_million": 0.40
       }
     }
   }
@@ -82,8 +82,8 @@ Add cost tracking configuration to `config.json`:
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `input_tokens_per_million` | number | Yes | Cost per million input tokens |
-| `output_tokens_per_million` | number | Yes | Cost per million output tokens |
+| `input_cost_per_million` | number | Yes | Cost per million input tokens |
+| `output_cost_per_million` | number | Yes | Cost per million output tokens |
 | `currency` | string | No | Currency code (defaults to `default_currency`) |
 
 ### Status Line Configuration
@@ -150,12 +150,12 @@ Add cost module to status line configuration:
     "default_currency": "USD",
     "model_pricing": {
       "openai,gpt-4.1": {
-        "input_tokens_per_million": 2.50,
-        "output_tokens_per_million": 10.00
+        "input_cost_per_million": 2.50,
+        "output_cost_per_million": 10.00
       },
       "openrouter,deepseek-chat": {
-        "input_tokens_per_million": 0.15,
-        "output_tokens_per_million": 0.60
+        "input_cost_per_million": 0.15,
+        "output_cost_per_million": 0.60
       }
     }
   },
@@ -182,20 +182,20 @@ Add cost module to status line configuration:
     "default_currency": "USD",
     "model_pricing": {
       "openai,gpt-4.1": {
-        "input_tokens_per_million": 2.50,
-        "output_tokens_per_million": 10.00
+        "input_cost_per_million": 2.50,
+        "output_cost_per_million": 10.00
       },
       "openrouter,deepseek-chat": {
-        "input_tokens_per_million": 0.15,
-        "output_tokens_per_million": 0.60
+        "input_cost_per_million": 0.15,
+        "output_cost_per_million": 0.60
       },
       "anthropic,claude-3-5-sonnet": {
-        "input_tokens_per_million": 3.00,
-        "output_tokens_per_million": 15.00
+        "input_cost_per_million": 3.00,
+        "output_cost_per_million": 15.00
       },
       "google,gemini-2.5-flash": {
-        "input_tokens_per_million": 0.10,
-        "output_tokens_per_million": 0.40
+        "input_cost_per_million": 0.10,
+        "output_cost_per_million": 0.40
       }
     }
   },

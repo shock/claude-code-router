@@ -61,8 +61,8 @@ The router already provides the necessary infrastructure:
     "default_currency": "USD",
     "model_pricing": {
       "openai,gpt-4.1": {
-        "input_tokens_per_million": 2.50,
-        "output_tokens_per_million": 10.00
+        "input_cost_per_million": 2.50,
+        "output_cost_per_million": 10.00
       }
     }
   },
@@ -174,8 +174,8 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    - Create `src/types/cost.ts` with type definitions:
    ```typescript
    interface ModelPricing {
-     input_tokens_per_million: number;
-     output_tokens_per_million: number;
+     input_cost_per_million: number;
+     output_cost_per_million: number;
      currency?: string;
    }
 
@@ -240,8 +240,8 @@ Testing is integrated throughout each phase to ensure functionality confidence a
          return cachedCost;
        }
 
-       const inputCost = (inputTokens * pricing.input_tokens_per_million) / 1000000;
-       const outputCost = (outputTokens * pricing.output_tokens_per_million) / 1000000;
+       const inputCost = (inputTokens * pricing.input_cost_per_million) / 1000000;
+       const outputCost = (outputTokens * pricing.output_cost_per_million) / 1000000;
        const totalCost = inputCost + outputCost;
 
        // Cache the calculation
@@ -292,8 +292,8 @@ Testing is integrated throughout each phase to ensure functionality confidence a
        const modelCost = sessionCost.modelCosts[model];
        modelCost.inputTokens += inputTokens;
        modelCost.outputTokens += outputTokens;
-       modelCost.inputCost += (inputTokens * this.config.model_pricing[model].input_tokens_per_million) / 1000000;
-       modelCost.outputCost += (outputTokens * this.config.model_pricing[model].output_tokens_per_million) / 1000000;
+       modelCost.inputCost += (inputTokens * this.config.model_pricing[model].input_cost_per_million) / 1000000;
+       modelCost.outputCost += (outputTokens * this.config.model_pricing[model].output_cost_per_million) / 1000000;
        modelCost.totalCost = modelCost.inputCost + modelCost.outputCost;
 
        // Update total session cost
@@ -351,10 +351,10 @@ Testing is integrated throughout each phase to ensure functionality confidence a
            if (!this.isValidModelFormat(model)) {
              errors.push(`Invalid model format: "${model}". Expected format: "<provider>,<model>"`);
            }
-           if (pricing.input_tokens_per_million <= 0) {
+           if (pricing.input_cost_per_million <= 0) {
              errors.push(`Invalid input pricing for ${model}: must be positive`);
            }
-           if (pricing.output_tokens_per_million <= 0) {
+           if (pricing.output_cost_per_million <= 0) {
              errors.push(`Invalid output pricing for ${model}: must be positive`);
            }
            if (pricing.currency && !this.isValidCurrency(pricing.currency)) {
@@ -558,8 +558,8 @@ Testing is integrated throughout each phase to ensure functionality confidence a
    }
 
    interface ModelPricing {
-     input_tokens_per_million: number;
-     output_tokens_per_million: number;
+     input_cost_per_million: number;
+     output_cost_per_million: number;
      currency?: string;
    }
    ```
@@ -996,12 +996,12 @@ Testing is integrated throughout each phase to ensure functionality confidence a
          "default_currency": "USD",
          "model_pricing": {
            "openai,gpt-4": {
-             "input_tokens_per_million": 2.50,
-             "output_tokens_per_million": 10.00
+             "input_cost_per_million": 2.50,
+             "output_cost_per_million": 10.00
            },
            "anthropic,claude-3.5-sonnet": {
-             "input_tokens_per_million": 3.00,
-             "output_tokens_per_million": 15.00
+             "input_cost_per_million": 3.00,
+             "output_cost_per_million": 15.00
            }
          }
        },
