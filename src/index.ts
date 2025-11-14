@@ -458,6 +458,10 @@ async function run(options: RunOptions = {}) {
     }
     done(null, payload)
   });
+  server.addHook("onSend", async (req, reply, payload) => {
+    event.emit('onSend', req, reply, payload);
+    return payload;
+  })
 
 
   server.start();
